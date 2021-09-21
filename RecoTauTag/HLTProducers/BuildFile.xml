@@ -14,5 +14,8 @@
 <use name="DataFormats/HLTReco"/>
 <use name="HLTrigger/HLTcore"/>
 <use name="RecoTracker/TkTrackingRegions"/>
+<use name="FWCore/Services"/>
+<use name="cuda"/>
+<use name="PhysicsTools/TensorFlow" />
 <use name="root"/>
 <flags EDM_PLUGIN="1"/>
