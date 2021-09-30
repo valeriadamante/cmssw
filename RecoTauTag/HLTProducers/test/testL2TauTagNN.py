@@ -8,10 +8,10 @@ import re
 options = VarParsing('analysis')
 options.register('sampleType', 'Run3MC', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  "Indicates the sample type: Run3MC or Run2Data")
-options.register('fileList', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
-                 "List of root files to process.")
-options.register('fileNamePrefix', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
-                 "Prefix to add to input file names.")
+#options.register('fileList', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
+#                 "List of root files to process.")
+#options.register('fileNamePrefix', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
+#                 "Prefix to add to input file names.")
 options.register('lumiFile', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  "JSON file with lumi mask.")
 options.register('eventList', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
@@ -26,7 +26,6 @@ dataDict = {"Run3MC" : False, "Run2Data" : True}
 isData = dataDict[options.sampleType]
 processName = 'MLProva'
 process = cms.Process(processName, Run3)
-
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
@@ -42,8 +41,9 @@ if not isData:
     process.load('SimGeneral.MixingModule.mixNoPU_cfi')
 
 process.source = cms.Source('PoolSource', fileNames = cms.untracked.vstring())
-# Input source
 
+# Input source
+'''
 from TauMLTools.Production.readFileList import *
 if len(options.fileList) > 0:
     readFileList(process.source.fileNames, options.fileList, options.fileNamePrefix)
@@ -54,11 +54,12 @@ else:
     #print(options.fileList)
 
     #process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/1E71AB01-1FF5-F049-94D4-642325AFF937.root')  # 5000 evts
-
-    process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/A95D23CB-88AC-6849-8980-5D12C8417007.root') # 11000 evts
+'''
+process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/A95D23CB-88AC-6849-8980-5D12C8417007.root') # 11000 evts
 
     #process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/F2760E46-A3DB-DA4F-A6EC-525C10EDCBC7.root') # 1000 evts
     #process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/657F58E7-64E3-AA4D-B505-6D0F39997487.root')
+
 
 
 if len(options.lumiFile) > 0:
@@ -72,6 +73,7 @@ process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(options.maxEvents),
     output = cms.optional.untracked.allowed(cms.int32,cms.PSet)
 )
+
 
 
 
@@ -126,12 +128,14 @@ process.GlobalTag = GlobalTag(process.GlobalTag, GlobalTagName, '')
 # Path and EndPath definitions
 process.endjob_step = cms.EndPath(process.endOfProcess)
 
+
 # Schedule definition
 process.schedule = cms.Schedule()
 process.schedule.extend(process.HLTSchedule)
 process.schedule.extend([process.endjob_step])
 from PhysicsTools.PatAlgos.tools.helpers import associatePatAlgosToolsTask
 associatePatAlgosToolsTask(process)
+
 
 # customisation of the process.
 
@@ -147,8 +151,12 @@ else:
     from HLTrigger.Configuration.customizeHLTforMC import customizeHLTforMC
     process = customizeHLTforMC(process)
 
-from TauMLTools.Production.ApplyCNNL2Test import update
+
+#from applyL2TauTag import update
+from RecoTauTag.HLTProducers.applyL2TauTag import update
 process = update(process)
+#process.schedule = cms.Schedule(*[ process.HLTriggerFirstPath, process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4, process.HLTriggerFinalPath, process.endjob_step ], tasks=[process.patAlgosToolsTask])
+
 
 # End of customisation functions
 
@@ -169,4 +177,5 @@ if options.dumpPython:
 process.options.wantSummary = cms.untracked.bool(False)
 if options.Summary:
    process.options.wantSummary = cms.untracked.bool(True)
+
 # End adding early deletion

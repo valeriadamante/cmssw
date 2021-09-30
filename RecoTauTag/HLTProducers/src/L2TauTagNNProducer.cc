@@ -1,14 +1,15 @@
 /*
-Outcomes producedr for L2 hadronic tau selection
+ * \class L2TauTagProducer
+ *
+ * L2Tau identification using Convolutional NN.
+ *
+ * \author Konstantin Androsov, EPFL
+ *         Valeria D'Amante, Università di Siena and INFN Pisa
 */
-// system include files
 #include <memory>
-#include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 #include <math.h>
-#include "Compression.h"
-#include "TMath.h"
-// user include files
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -19,14 +20,11 @@ Outcomes producedr for L2 hadronic tau selection
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
-// utilities
 #include "PhysicsTools/TensorFlow/interface/TensorFlow.h"
-// Geometry
 #include "Geometry/CaloGeometry/interface/CaloCellGeometry.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/CaloTopology/interface/HcalTopology.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
-// caloRecHit
 #include "DataFormats/CaloRecHit/interface/CaloRecHit.h"
 #include "DataFormats/EcalRecHit/interface/EcalRecHit.h"
 #include "DataFormats/EcalRecHit/interface/EcalRecHitCollections.h"
@@ -36,10 +34,8 @@ Outcomes producedr for L2 hadronic tau selection
 #include "DataFormats/HcalRecHit/interface/HcalRecHitDefs.h"
 #include "DataFormats/HcalRecHit/interface/HFRecHit.h"
 #include "DataFormats/HcalRecHit/interface/HORecHit.h"
-// L1 Tau Trigger
 #include "DataFormats/HLTReco/interface/TriggerTypeDefs.h"
 #include "DataFormats/HLTReco/interface/TriggerFilterObjectWithRefs.h"
-// Tracks
 #include "TrackingTools/TrajectoryParametrization/interface/CurvilinearTrajectoryError.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 #include "TrackingTools/TrajectoryParametrization/interface/GlobalTrajectoryParameters.h"
@@ -51,13 +47,21 @@ Outcomes producedr for L2 hadronic tau selection
 #include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 #include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
-//vertices
+#include "CUDADataFormats/Track/interface/TrackSoAHeterogeneousT.h"
 #include "CUDADataFormats/Vertex/interface/ZVertexSoA.h"
 #include "CUDADataFormats/Vertex/interface/ZVertexHeterogeneous.h"
 
+namespace {
+  template<typename T>
+  edm::Handle<T> getHandle(const edm::Event& event, const edm::EDGetTokenT<T>& token)  {
+       edm::Handle<T> handle;
+       event.getByToken(token, handle);
+       return handle;
+  }
 
+}
 namespace tau_hlt{
-
+  namespace L2TauTagNNv1{
   enum class NNInputs {
       nVertices = 0,
       l1Tau_pt,
@@ -125,7 +129,7 @@ namespace tau_hlt{
     {NNInputs::PatatrackDxy,"PatatrackDxy"},
     {NNInputs::PatatrackDz,"PatatrackDz"}
   };
-
+  }
   struct normDictElement{
     float mean;
     float std;
@@ -144,7 +148,6 @@ namespace tau_hlt{
 
   public:
 
-    using OutputCollection = std::map<int, std::vector<float>>;
 
     struct caloRecHitCollections {
       const HBHERecHitCollection  *hbhe;
@@ -156,53 +159,51 @@ namespace tau_hlt{
 
     struct InputDescTau {
       std::string CollectionName;
-      edm::EDGetTokenT<trigger::TriggerFilterObjectWithRefs> input_token;
+      edm::EDGetTokenT<trigger::TriggerFilterObjectWithRefs> inputToken_;
     };
 
     static constexpr int nCellEta = 5;
     static constexpr int nCellPhi = 5;
     static constexpr int nVars = 31;
     static constexpr float dR_max = 0.5;
-    static constexpr float dR2_max = 0.25;
+    static constexpr float dR2_max = std::pow(dR_max, 2);
     static constexpr float dEta_width = 2*dR_max/static_cast<float>(nCellEta);
     static constexpr float dPhi_width = 2*dR_max/static_cast<float>(nCellPhi);
 
     explicit L2TauNNProducer(const edm::ParameterSet&, const L2TauNNProducerCacheData*);
-    ~L2TauNNProducer() override {}
     static void fillDescriptions(edm::ConfigurationDescriptions&);
     static std::unique_ptr<L2TauNNProducerCacheData> initializeGlobalCache(const edm::ParameterSet&);
     static void globalEndJob(L2TauNNProducerCacheData*);
 
   private:
+    //void checknan(tensorflow::Tensor& tensor, int debugLevel); // need with also printout tensor for the moment. in final version there will be no printout tensor
     void checknan(tensorflow::Tensor& tensor, bool printoutTensor, int debugLevel);
     void standardizeTensor(tensorflow::Tensor& tensor);
     std::vector<float> GetTauScore(const tensorflow::Tensor& cellGridMatrix);
     void produce(edm::Event& event, const edm::EventSetup& eventsetup) ;
     void FillL1TauVars(tensorflow::Tensor& cellGridMatrix, const std::vector<l1t::TauRef> allTaus);
     void FillCaloRecHits(tensorflow::Tensor& cellGridMatrix, const std::vector<l1t::TauRef> allTaus, const caloRecHitCollections& caloRecHits);
-    void FillPatatracks(tensorflow::Tensor& cellGridMatrix, const std::vector<l1t::TauRef> allTaus, const PixelTrackHeterogeneous& patatracks, const ZVertexHeterogeneous& patavertices,const reco::BeamSpot &beamspot, const MagneticField *magfi);
-    std::vector<int> GetVtxGood(const ZVertexHeterogeneous& patavertices, const PixelTrackHeterogeneous& patatracks,const std::vector<int> TrackGood);
-    std::vector<float> impactParameter(int it, const PixelTrackHeterogeneous& patatracks, float patatrackPhi,const reco::BeamSpot &beamspot, const MagneticField *magfi );
+    void FillPatatracks(tensorflow::Tensor& cellGridMatrix, const std::vector<l1t::TauRef> allTaus, const pixelTrack::TrackSoA& patatracks_tsoa, const ZVertexSoA& patavtx_soa,const reco::BeamSpot &beamspot, const MagneticField *magfi);
+    std::vector<int> SelectGoodVertices(const ZVertexSoA& patavtx_soa, const pixelTrack::TrackSoA& patatracks_tsoa,const std::vector<int>& TrackGood);
+    std::pair<float, float>  impactParameter(int it, const pixelTrack::TrackSoA& patatracks_tsoa, float patatrackPhi,const reco::BeamSpot &beamspot, const MagneticField *magfi );
+    template<typename VPos, typename LVec> std::tuple<float, float, int, int> getEtaPhiIndices(const VPos& position, const LVec& tau_p4) const;
 
 
   private:
     int debugLevel_;
-    std::string processName;
-    const edm::EDGetTokenT<trigger::TriggerFilterObjectWithRefs> tauTrigger_token;
-    std::vector<InputDescTau> L1TauDesc;
-    edm::EDGetTokenT<HBHERecHitCollection> hbhe_token;
-    edm::EDGetTokenT<HORecHitCollection> ho_token;
-    std::vector<edm::InputTag> ecalLabels;
-    edm::ESGetToken<CaloGeometry, CaloGeometryRecord> Geometry_token;
-    edm::EDGetTokenT<ZVertexHeterogeneous> pataVertices_token;
-    edm::EDGetTokenT<PixelTrackHeterogeneous> pataTracks_token;
-    edm::EDGetTokenT<reco::BeamSpot> BeamSpot_token;
-    std::string normalizationDict_;
-    std::vector<edm::EDGetTokenT<EcalRecHitCollection>> ecal_tokens;
+    const edm::EDGetTokenT<trigger::TriggerFilterObjectWithRefs> tauTriggerToken_;
+    std::vector<InputDescTau> L1TauDesc_;
+    const edm::EDGetTokenT<HBHERecHitCollection> hbheToken_;
+    const edm::EDGetTokenT<HORecHitCollection> hoToken_;
+    const edm::EDGetTokenT<EcalRecHitCollection> ebToken_;
+    const edm::EDGetTokenT<EcalRecHitCollection> eeToken_;
+    const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> GeometryToken_;
+    const edm::EDGetTokenT<ZVertexHeterogeneous> pataVerticesToken_;
+    const edm::EDGetTokenT<PixelTrackHeterogeneous> pataTracksToken_;
+    const edm::EDGetTokenT<reco::BeamSpot> BeamSpotToken_;
     std::string inputTensorName_;
     std::string outputTensorName_;
-    OutputCollection outputs_;
-    const L2TauNNProducerCacheData* L2cacheData;
+    const L2TauNNProducerCacheData* L2cacheData_;
 
   };
 
@@ -223,7 +224,7 @@ namespace tau_hlt{
     std::string normalizationDict = cfg.getParameter<std::string>("normalizationDict");
     normalizationDict = edm::FileInPath(normalizationDict).fullPath();
     boost::property_tree::read_json(cfg.getParameter<std::string>("normalizationDict"), loadPtreeRoot);
-    for (auto& [key, val] : varNameMap){
+    for (const auto& [key, val] : L2TauTagNNv1::varNameMap){
       boost::property_tree::ptree var = loadPtreeRoot.get_child(val);
       normDictElement current_element;
       current_element.mean = var.get_child("mean").get_value<float>();
@@ -243,64 +244,49 @@ namespace tau_hlt{
   void L2TauNNProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
     edm::ParameterSetDescription desc;
     desc.add<int>("debugLevel", 0)->setComment("set debug level for printing out info");
-    desc.add<std::string>("processName","")->setComment("Name of the process");
-
     edm::ParameterSetDescription l1TausPset;
     l1TausPset.add<std::string>("L1CollectionName", "")->setComment("Name of collections");
     l1TausPset.add<edm::InputTag>("L1TauTrigger", edm::InputTag(""))->setComment("Which trigger should the L1 Taus collection pass");
     desc.addVPSet("L1Taus", l1TausPset);
-    //desc.add<edm::InputTag>("L1TauTrigger"); // keep it for debugging
     desc.add<edm::InputTag>("hbheInput", edm::InputTag(""))->setComment("HBHE recHit collection");
     desc.add<edm::InputTag>("hoInput", edm::InputTag(""))->setComment("HO recHit Collection");
-    desc.add<std::vector<edm::InputTag>>("ecalInputs")->setComment("EB and EE recHit Collections");
+    desc.add<edm::InputTag>("ebInput", edm::InputTag(""))->setComment("EB recHit Collection");
+    desc.add<edm::InputTag>("eeInput", edm::InputTag(""))->setComment("EE recHit Collection");
     desc.add<edm::InputTag>("pataVertices", edm::InputTag("hltPixelVerticesSoA"))->setComment("patatrack vertices collection");
     desc.add<edm::InputTag>("pataTracks", edm::InputTag("hltPixelTracksSoA"))->setComment("patatrack collection");
     desc.add<edm::InputTag>("BeamSpot");
-    desc.add<std::string>("graphPath","TauMLTools/Analysis/config/graph_model/Saved_model_0Dropout.pb")->setComment("path to the saved CNN");
-    desc.add<std::string>("normalizationDict","TauMLTools/Analysis/config/NormalizationDict.json")->setComment("path to the dictionary for variable standardization");
+    desc.add<std::string>("graphPath","RecoTauTag/TrainingFiles/L2TauNNTag/L2TauTag_Run3v1.pb")->setComment("path to the saved CNN");
+    desc.add<std::string>("normalizationDict","RecoTauTag/TrainingFiles/L2TauNNTag/NormalizationDict.json")->setComment("path to the dictionary for variable standardization");
     descriptions.addWithDefaultLabel(desc);
   }
 
 
   L2TauNNProducer::L2TauNNProducer(const edm::ParameterSet& cfg, const L2TauNNProducerCacheData* cacheData):
         debugLevel_(cfg.getParameter<int>("debugLevel")),
-        processName(cfg.getParameter<std::string>("processName")),
-        //tauTrigger_token(consumes<trigger::TriggerFilterObjectWithRefs>(cfg.getParameter<edm::InputTag>("L1TauTrigger"))),  // keep it for debugging
-        hbhe_token(consumes<HBHERecHitCollection>(cfg.getParameter<edm::InputTag>("hbheInput"))),
-        ho_token(consumes<HORecHitCollection>(cfg.getParameter<edm::InputTag>("hoInput"))),
-        ecalLabels(cfg.getParameter<std::vector<edm::InputTag> >("ecalInputs")),
-        Geometry_token(esConsumes<CaloGeometry,CaloGeometryRecord>()),
-        pataVertices_token(consumes<ZVertexHeterogeneous>(cfg.getParameter<edm::InputTag>("pataVertices"))),
-        pataTracks_token(consumes<PixelTrackHeterogeneous>(cfg.getParameter<edm::InputTag>("pataTracks"))),
-        BeamSpot_token(consumes<reco::BeamSpot>(cfg.getParameter<edm::InputTag>("BeamSpot"))),
-        normalizationDict_(cfg.getParameter<std::string>("normalizationDict")),
+        hbheToken_(consumes<HBHERecHitCollection>(cfg.getParameter<edm::InputTag>("hbheInput"))),
+        hoToken_(consumes<HORecHitCollection>(cfg.getParameter<edm::InputTag>("hoInput"))),
+        ebToken_(consumes<EcalRecHitCollection>(cfg.getParameter<edm::InputTag>("ebInput"))),
+        eeToken_(consumes<EcalRecHitCollection>(cfg.getParameter<edm::InputTag>("eeInput"))),
+        GeometryToken_(esConsumes<CaloGeometry,CaloGeometryRecord>()),
+        pataVerticesToken_(consumes<ZVertexHeterogeneous>(cfg.getParameter<edm::InputTag>("pataVertices"))),
+        pataTracksToken_(consumes<PixelTrackHeterogeneous>(cfg.getParameter<edm::InputTag>("pataTracks"))),
+        BeamSpotToken_(consumes<reco::BeamSpot>(cfg.getParameter<edm::InputTag>("BeamSpot"))),
         inputTensorName_((cacheData->graphDef)->node(0).name()),
         outputTensorName_((cacheData->graphDef)->node((cacheData->graphDef)->node_size()-1).name()),
-        L2cacheData(cacheData)
+        L2cacheData_(cacheData)
         {
-           std::vector<edm::ParameterSet> L1TauCollections_token = cfg.getParameter<std::vector<edm::ParameterSet> >("L1Taus");
-
-          const unsigned nLabels = ecalLabels.size();
-          for (unsigned i = 0; i != nLabels; i++)
-            ecal_tokens.push_back(consumes<EcalRecHitCollection>(ecalLabels[i]));
-          int k = 0 ;
-          for (std::vector<edm::ParameterSet>::const_iterator iL1Tau = L1TauCollections_token.begin(); iL1Tau != L1TauCollections_token.end(); ++iL1Tau) {
+          std::vector<edm::ParameterSet> L1TauCollections = cfg.getParameter<std::vector<edm::ParameterSet>>("L1Taus");
+          for(const auto& l1TauInput : L1TauCollections){
             InputDescTau toInsert;
-            toInsert.CollectionName = iL1Tau->getParameter<std::string>("L1CollectionName");
-            toInsert.input_token = consumes<trigger::TriggerFilterObjectWithRefs>(iL1Tau->getParameter<edm::InputTag>("L1TauTrigger"));
-            L1TauDesc.push_back(toInsert);
-            std::vector<float> outcomes_;
-            outputs_.insert(std::pair<int, std::vector<float>>(k, outcomes_));
-            k++;
-
+            toInsert.CollectionName = l1TauInput.getParameter<std::string>("L1CollectionName");
+            toInsert.inputToken_ = consumes<trigger::TriggerFilterObjectWithRefs>(l1TauInput.getParameter<edm::InputTag>("L1TauTrigger"));
+            L1TauDesc_.push_back(toInsert);
           }
-          for (auto& [inp_idx, out_vec] : outputs_ ) {
-            produces<std::vector<float>>(L1TauDesc[inp_idx].CollectionName);
-          }
-          //produces<std::vector<float>>("L1BigOR");  // keep it for debugging
-
+          for(const auto& desc : L1TauDesc_)
+            produces<std::vector<float>>(desc.CollectionName);
         }
 
+   //void L2TauNNProducer::checknan(tensorflow::Tensor& tensor, int debugLevel){ // for the moment I need printoutTensor to stay
    void L2TauNNProducer::checknan(tensorflow::Tensor& tensor, bool printoutTensor, int debugLevel){
      std::vector<int> tensor_shape;
      for(int d=0; d<tensor.shape().dims(); d++) {
@@ -315,32 +301,32 @@ namespace tau_hlt{
            for(int var_idx =0; var_idx < tensor_shape.at(3); var_idx++){
              auto nonstd_var = getCell(tau_idx,phi_idx, eta_idx, var_idx);
              if(std::isnan(nonstd_var)){
-               std::cout << "var is nan \nvar name= " << varNameMap.at(static_cast<NNInputs>(var_idx))
+               std::cout << "var is nan \nvar name= " << L2TauTagNNv1::varNameMap.at(static_cast<L2TauTagNNv1::NNInputs>(var_idx))
                 << "\t var_idx = " << var_idx << "\t eta_idx = " << eta_idx
                   << "\t phi_idx = " << phi_idx << "\t tau_idx = " << tau_idx << std::endl;
                if(debugLevel>2){
                  std::cout << "other vars in same cell \n";
-                 if(var_idx+1 < tensor_shape.at(3)) std::cout << varNameMap.at(static_cast<NNInputs>(var_idx+1))
+                 if(var_idx+1 < tensor_shape.at(3)) std::cout << L2TauTagNNv1::varNameMap.at(static_cast<L2TauTagNNv1::NNInputs>(var_idx+1))
                    << "\t = " <<getCell(tau_idx,phi_idx, eta_idx, var_idx+1) << std::endl;
-                 if(var_idx+2 < tensor_shape.at(3)) std::cout << varNameMap.at(static_cast<NNInputs>(var_idx+2))
+                 if(var_idx+2 < tensor_shape.at(3)) std::cout << L2TauTagNNv1::varNameMap.at(static_cast<L2TauTagNNv1::NNInputs>(var_idx+2))
                    << "\t = " <<getCell(tau_idx,phi_idx, eta_idx, var_idx+2) << std::endl;
-                 if(var_idx+3 < tensor_shape.at(3)) std::cout << varNameMap.at(static_cast<NNInputs>(var_idx+3))
+                 if(var_idx+3 < tensor_shape.at(3)) std::cout << L2TauTagNNv1::varNameMap.at(static_cast<L2TauTagNNv1::NNInputs>(var_idx+3))
                    << "\t = " <<getCell(tau_idx,phi_idx, eta_idx, var_idx+3) << std::endl;
-                 if(var_idx+4 < tensor_shape.at(3)) std::cout << varNameMap.at(static_cast<NNInputs>(var_idx+4))
+                 if(var_idx+4 < tensor_shape.at(3)) std::cout << L2TauTagNNv1::varNameMap.at(static_cast<L2TauTagNNv1::NNInputs>(var_idx+4))
                    << "\t = " <<getCell(tau_idx,phi_idx, eta_idx, var_idx+4) << std::endl;
-               } // end if debugLevel
-             } // end if is nan
-           } // end loop on var_idx
-         } // end loop on eta_idx
-       } // end loop on phi_idx
-     } // end loop on tau_idx
+               }
+             }
+           }
+         }
+       }
+     }
      if(printoutTensor){
        for(int tau_idx =0; tau_idx < tensor_shape.at(0); tau_idx++){
          for(int phi_idx =0; phi_idx < tensor_shape.at(1); phi_idx++){
            for(int eta_idx =0; eta_idx < tensor_shape.at(2); eta_idx++){
              for(int var_idx =0; var_idx < tensor_shape.at(3); var_idx++){
                // search for a specific tau - needed for debugging
-               if(getCell(tau_idx, phi_idx, eta_idx, static_cast<int>(NNInputs::l1Tau_pt)) *256.0 == 165.5){
+               if(getCell(tau_idx, phi_idx, eta_idx, static_cast<int>(L2TauTagNNv1::NNInputs::l1Tau_pt)) *256.0 == 54){
                  if(debugLevel<5){
                    break;
                  }
@@ -348,15 +334,15 @@ namespace tau_hlt{
                    std::cout << getCell(tau_idx, phi_idx, eta_idx, var_idx) <<",\n";
                  }
                  else{
-                   std::cout << "\nvar name= " << varNameMap.at(static_cast<NNInputs>(var_idx)) <<"\t tau_idx = " << tau_idx<<"\t phi_idx = " << phi_idx << "\t eta_idx = " << eta_idx << " \tvalue =" << getCell(tau_idx,phi_idx, eta_idx, var_idx);
+                   std::cout << "\nvar name= " << L2TauTagNNv1::varNameMap.at(static_cast<L2TauTagNNv1::NNInputs>(var_idx)) <<"\t tau_idx = " << tau_idx<<"\t phi_idx = " << phi_idx << "\t eta_idx = " << eta_idx << " \tvalue =" << getCell(tau_idx,phi_idx, eta_idx, var_idx);
                  }
-               } // end if debugLevel
-             } // end loop on var_idx
-           } // end loop on eta_idx
-         } // end loop on phi_idx
-       } // end loop on tau_idx
-     } // end if printout
-   } // end function
+               }
+             }
+           }
+         }
+       }
+     }
+   }
 
 
    void L2TauNNProducer::standardizeTensor(tensorflow::Tensor& tensor){
@@ -371,10 +357,10 @@ namespace tau_hlt{
        for(int  phi_idx=0; phi_idx < tensor_shape.at(1); phi_idx++){
          for(int eta_idx =0; eta_idx < tensor_shape.at(2); eta_idx++){
            for(int var_idx =0; var_idx < tensor_shape.at(3); var_idx++){
-             float mean = L2cacheData->normVec.at(var_idx).mean;
-             float std = L2cacheData->normVec.at(var_idx).std;
-             float min = L2cacheData->normVec.at(var_idx).min;
-             float max = L2cacheData->normVec.at(var_idx).max;
+             float mean = L2cacheData_->normVec.at(var_idx).mean;
+             float std = L2cacheData_->normVec.at(var_idx).std;
+             float min = L2cacheData_->normVec.at(var_idx).min;
+             float max = L2cacheData_->normVec.at(var_idx).max;
              float nonstd_var = getCell(tau_idx, phi_idx, eta_idx, var_idx);
              float std_var = static_cast<float>((nonstd_var-mean)/std) ;
              if(std_var > max ){
@@ -384,183 +370,172 @@ namespace tau_hlt{
                std_var = static_cast<float>(min);
              }
              getCell(tau_idx, phi_idx, eta_idx, var_idx) = std_var;
-           } // end loop on var_idx
-         } // end loop on eta_idx
-       } // end loop on phi_idx
-     } // end loop on tau_idx
-   } // end function
+           }
+         }
+       }
+     }
+   }
 
 
    void L2TauNNProducer::FillL1TauVars(tensorflow::Tensor &cellGridMatrix, const std::vector<l1t::TauRef> allTaus){
-     auto getCell = [&](int tau_idx, int phi_idx, int eta_idx, NNInputs NNInput_idx)-> float& {
+     auto getCell = [&](int tau_idx, int phi_idx, int eta_idx, L2TauTagNNv1::NNInputs NNInput_idx)-> float& {
        return cellGridMatrix.tensor<float, 4>()(tau_idx,phi_idx, eta_idx, static_cast<int>(NNInput_idx));
      };
      int nTaus = static_cast<int>(allTaus.size());
      for (int tau_idx = 0; tau_idx< nTaus; tau_idx++){
        for (int eta_idx = 0; eta_idx<nCellEta ; eta_idx++){
          for (int phi_idx = 0; phi_idx<nCellPhi ; phi_idx++){
-           getCell(tau_idx,phi_idx, eta_idx, NNInputs::l1Tau_pt)= allTaus[tau_idx]->polarP4().pt();
-           getCell(tau_idx,phi_idx, eta_idx, NNInputs::l1Tau_eta)= allTaus[tau_idx]->polarP4().eta();
-           getCell(tau_idx,phi_idx, eta_idx, NNInputs::l1Tau_hwIso)= allTaus[tau_idx]->hwIso();
-         } //end loop phi
-       } // end loop eta
-     } // end loop tau
-   } // end function
+           getCell(tau_idx,phi_idx, eta_idx, L2TauTagNNv1::NNInputs::l1Tau_pt)= allTaus[tau_idx]->polarP4().pt();
+           getCell(tau_idx,phi_idx, eta_idx, L2TauTagNNv1::NNInputs::l1Tau_eta)= allTaus[tau_idx]->polarP4().eta();
+           getCell(tau_idx,phi_idx, eta_idx, L2TauTagNNv1::NNInputs::l1Tau_hwIso)= allTaus[tau_idx]->hwIso();
+         }
+       }
+     }
+   }
+
+   template<typename VPos, typename LVec>  std::tuple<float, float, int, int> L2TauNNProducer::getEtaPhiIndices(const VPos& position, const LVec& tau_p4) const
+   {
+       const float deta = position.eta()-tau_p4.eta();
+       const float dphi = reco::deltaPhi(position,tau_p4);
+       const int eta_idx = static_cast<int>(floor((deta + dR_max) / dEta_width));
+       const int phi_idx = static_cast<int>(floor((dphi + dR_max) / dPhi_width));
+       return std::make_tuple(deta, dphi, eta_idx, phi_idx);
+   }
 
    void L2TauNNProducer::FillCaloRecHits(tensorflow::Tensor &cellGridMatrix, const std::vector<l1t::TauRef> allTaus, const caloRecHitCollections& caloRecHits){
 
-     auto getCell = [&](int tau_idx, int phi_idx, int eta_idx, NNInputs NNInput_idx)-> float& {
+     auto getCell = [&](int tau_idx, int phi_idx, int eta_idx, L2TauTagNNv1::NNInputs NNInput_idx)-> float& {
        return cellGridMatrix.tensor<float, 4>()(tau_idx, phi_idx, eta_idx, static_cast<int>(NNInput_idx));
      };
 
      int nTaus = static_cast<int>(allTaus.size());
      for (int tau_idx = 0; tau_idx< nTaus; tau_idx++){
-      float tauEta = allTaus[tau_idx]->polarP4().eta();
 
       // caorechit_EE
-      for (auto & caloRecHit_ee : *caloRecHits.ee){
+      for (const auto& caloRecHit_ee : *caloRecHits.ee){
         if(caloRecHit_ee.energy()<=0) continue;
         auto& position = caloRecHits.Geometry->getGeometry(caloRecHit_ee.id())->getPosition();
-        float eeCalEta = position.eta();
-
         float eeCalEn = caloRecHit_ee.energy();
         float eeCalChi2 = caloRecHit_ee.chi2();
         if(reco::deltaR2(position,allTaus[tau_idx]->polarP4())<dR2_max){
-          float deta = eeCalEta-tauEta;
-          int eta_idx = static_cast<int>(floor(((deta + dR_max) / dEta_width)));
-          float dphi = reco::deltaPhi(position,allTaus[tau_idx]->polarP4());
-          int phi_idx = static_cast<int>(floor(((dphi + dR_max) / dPhi_width)));
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySum)+=(eeCalEn);
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalSize)+=1.;
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergyStdDev)+=(eeCalEn * eeCalEn);
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaEta)+=(deta*eeCalEn);
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaPhi)+=(dphi*eeCalEn);
+          const auto [deta, dphi, eta_idx, phi_idx] = getEtaPhiIndices(position, allTaus[tau_idx]->polarP4());
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySum)+=eeCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalSize)+=1.;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergyStdDev)+=eeCalEn * eeCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaEta)+=deta*eeCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaPhi)+=dphi*eeCalEn;
           if(eeCalChi2>=0){
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalChi2)+=(eeCalChi2*eeCalEn);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySumForPositiveChi2)+=(eeCalEn);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalSizeForPositiveChi2)+=1.;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalChi2)+=eeCalChi2*eeCalEn;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySumForPositiveChi2)+=eeCalEn;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalSizeForPositiveChi2)+=1.;
           }
         }
-      } // end of loop over calorechit_ee
+      }
 
       // caorechit_EB
-      for (auto & caloRecHit_eb : *caloRecHits.eb){
+      for (const auto& caloRecHit_eb : *caloRecHits.eb){
         if(caloRecHit_eb.energy()<=0) continue;
         auto& position = caloRecHits.Geometry->getGeometry(caloRecHit_eb.id())->getPosition();
-        float ebCalEta = position.eta();
         float ebCalEn = caloRecHit_eb.energy();
         float ebCalChi2 = caloRecHit_eb.chi2();
         if(reco::deltaR2(position,allTaus[tau_idx]->polarP4())<dR2_max){
-          float deta = ebCalEta-tauEta;
-          int eta_idx = static_cast<int>(floor(((deta + dR_max) / dEta_width)));
-          float dphi = reco::deltaPhi(position,allTaus[tau_idx]->polarP4());
-          int phi_idx = static_cast<int>(floor(((dphi + dR_max) / dPhi_width)));
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySum)+=(ebCalEn);
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalSize)+=1.;
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergyStdDev)+=(ebCalEn * ebCalEn);
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaEta)+=(deta*ebCalEn);
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaPhi)+=(dphi*ebCalEn);
+          const auto [deta, dphi, eta_idx, phi_idx] = getEtaPhiIndices(position, allTaus[tau_idx]->polarP4());
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySum)+=ebCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalSize)+=1.;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergyStdDev)+=ebCalEn * ebCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaEta)+=deta*ebCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaPhi)+=dphi*ebCalEn;
           if(ebCalChi2>=0){
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalChi2)+=(ebCalChi2*ebCalEn);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySumForPositiveChi2)+=(ebCalEn);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalSizeForPositiveChi2)+=1.;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalChi2)+=ebCalChi2*ebCalEn;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySumForPositiveChi2)+=ebCalEn;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalSizeForPositiveChi2)+=1.;
           }
         }
-      } // end of loop over calorechit_eb
+      }
 
       // normalize to sum and define stdDev
       for (int eta_idx = 0; eta_idx<nCellEta ; eta_idx++){
         for (int phi_idx = 0; phi_idx<nCellPhi ; phi_idx++){
-          if( getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySum)>0. ){
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaEta) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaEta)/getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySum);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaPhi) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalDeltaPhi)/getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySum);
+          if( getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySum)>0. ){
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaEta) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaEta)/getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySum);
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaPhi) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalDeltaPhi)/getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySum);
           }
-          if( getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySumForPositiveChi2)>0.){
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalChi2) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalChi2)/ getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySumForPositiveChi2);
+          if( getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySumForPositiveChi2)>0.){
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalChi2) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalChi2)/ getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySumForPositiveChi2);
           }
-          if(getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalSize)>1.){
+          if(getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalSize)>1.){
             // (stdDev - (enSum*enSum)/size) / (size-1)
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergyStdDev) = (getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergyStdDev)  -  ( getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySum) * getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergySum) ) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalSize)   ) / (getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalSize) -1 );
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergyStdDev) = (getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergyStdDev)  -  ( getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySum) * getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergySum) ) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalSize)   ) / (getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalSize) -1 );
           }
           else{
-             getCell(tau_idx, phi_idx, eta_idx, NNInputs::EcalEnergyStdDev) = 0.;
+             getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::EcalEnergyStdDev) = 0.;
           }
-        } // end loop on phi
-      } // end loop on eta
+        }
+      }
 
 
       // caorechit_HBHE
-      for (auto & caloRecHit_hbhe : *caloRecHits.hbhe){
+      for (const auto& caloRecHit_hbhe : *caloRecHits.hbhe){
         if(caloRecHit_hbhe.energy()<=0) continue;
         auto& position = caloRecHits.Geometry->getGeometry(caloRecHit_hbhe.id())->getPosition();
-        float hbheCalEta = position.eta();
         float hbheCalEn = caloRecHit_hbhe.energy();
         float hbheCalChi2 = caloRecHit_hbhe.chi2();
         if(reco::deltaR2(position,allTaus[tau_idx]->polarP4())<dR2_max){
-          float deta = hbheCalEta-tauEta;
-          int eta_idx = static_cast<int>(floor(((deta + dR_max) / dEta_width)));
-          float dphi = reco::deltaPhi(position,allTaus[tau_idx]->polarP4());
-          int phi_idx = static_cast<int>(floor(((dphi + dR_max) / dPhi_width)));
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySum)+=(hbheCalEn); //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergyStdDev)+=(hbheCalEn * hbheCalEn); //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalSize)+=1.; //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaEta)+=(deta*hbheCalEn); //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaPhi)+=(dphi*hbheCalEn); //
+          const auto [deta, dphi, eta_idx, phi_idx] = getEtaPhiIndices(position, allTaus[tau_idx]->polarP4());
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySum)+=hbheCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergyStdDev)+=hbheCalEn * hbheCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalSize)+=1.;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaEta)+=deta*hbheCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaPhi)+=dphi*hbheCalEn;
           if(hbheCalChi2>=0){
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalChi2)+=(hbheCalChi2*hbheCalEn); //
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySumForPositiveChi2)+=(hbheCalEn); //
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalSizeForPositiveChi2)+=1.; //
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalChi2)+=hbheCalChi2*hbheCalEn;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySumForPositiveChi2)+=hbheCalEn;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalSizeForPositiveChi2)+=1.;
           }
         }
-      } // end of loop over calorechit_hbhe
+      }
 
       // caorechit_HO
-      for (auto & caloRecHit_ho : *caloRecHits.ho){
+      for (const auto& caloRecHit_ho : *caloRecHits.ho){
         if(caloRecHit_ho.energy()<=0) continue;
         auto& position = caloRecHits.Geometry->getGeometry(caloRecHit_ho.id())->getPosition();
-        float hoCalEta = position.eta();
         float hoCalEn = caloRecHit_ho.energy();
         if(reco::deltaR2(position,allTaus[tau_idx]->polarP4())<dR2_max){
-          float deta = hoCalEta-tauEta;
-          int eta_idx = static_cast<int>(floor(((deta + dR_max) / dEta_width)));
-          float dphi = reco::deltaPhi(position,allTaus[tau_idx]->polarP4());
-          int phi_idx = static_cast<int>(floor(((dphi + dR_max) / dPhi_width)));
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySum)+=(hoCalEn); //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergyStdDev)+=(hoCalEn * hoCalEn); //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalSize)+=1.; //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaEta)+=(deta*hoCalEn); //
-          getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaPhi)+=(dphi*hoCalEn); //
+          const auto [deta, dphi, eta_idx, phi_idx] = getEtaPhiIndices(position, allTaus[tau_idx]->polarP4());
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySum)+=hoCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergyStdDev)+=hoCalEn * hoCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalSize)+=1.;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaEta)+=deta*hoCalEn;
+          getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaPhi)+=dphi*hoCalEn;
         }
-      } // end of loop over calorechit_ho
+      }
 
       // normalize to sum and define stdDev
       for (int eta_idx = 0; eta_idx<nCellEta ; eta_idx++){
         for (int phi_idx = 0; phi_idx<nCellPhi ; phi_idx++){
-          if( getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySum)>0. ){
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaEta) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaEta)/getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySum);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaPhi) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalDeltaPhi)/getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySum);
+          if( getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySum)>0. ){
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaEta) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaEta)/getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySum);
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaPhi) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalDeltaPhi)/getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySum);
           }
-          if( getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySumForPositiveChi2)>0.){
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalChi2) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalChi2)/ getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySumForPositiveChi2);
+          if( getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySumForPositiveChi2)>0.){
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalChi2) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalChi2)/ getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySumForPositiveChi2);
           }
-          if(getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalSize)>1.){
+          if(getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalSize)>1.){
             // (stdDev - (enSum*enSum)/size) / (size-1)
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergyStdDev) = (getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergyStdDev)  -  ( getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySum) * getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergySum) ) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalSize)   ) / (getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalSize) -1 );
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergyStdDev) = (getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergyStdDev)  -  ( getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySum) * getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergySum) ) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalSize)   ) / (getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalSize) -1 );
           }
           else{
-             getCell(tau_idx, phi_idx, eta_idx, NNInputs::HcalEnergyStdDev) = 0.;
+             getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::HcalEnergyStdDev) = 0.;
           }
-        } // end loop on phi
-      } // end loop on eta
+        }
+      }
 
-    } // end loop over tau
+    }
 
-  } // end function
+  }
 
-   std::vector<int> L2TauNNProducer::GetVtxGood(const ZVertexHeterogeneous& patavertices, const PixelTrackHeterogeneous& patatracks, const std::vector<int> TrackGood){
-     auto const &patatrack_tsoa = *patatracks.get();
-     auto maxTracks = patatrack_tsoa.stride();
-     auto const &patavtx_soa = *patavertices.get();
+   std::vector<int> L2TauNNProducer::SelectGoodVertices(const ZVertexSoA& patavtx_soa, const pixelTrack::TrackSoA& patatracks_tsoa, const std::vector<int>& TrackGood){
+     auto maxTracks = patatracks_tsoa.stride();
      int nv = patavtx_soa.nvFinal;
      std::vector<int> VtxGood;
      VtxGood.reserve(nv);
@@ -575,7 +550,6 @@ namespace tau_hlt{
      std::vector<double> maxChi2_;
      std::vector<double> pTSquaredSum(nv);
 
-     // loop on vertices and on associated tracks to vertices
      for (int j = nv - 1; j >= 0; --j){
        std::vector<int> trk_ass_to_vtx ;
        auto vtx_idx = patavtx_soa.sortInd[j];
@@ -587,21 +561,19 @@ namespace tau_hlt{
        }
        auto nt = trk_ass_to_vtx.size();
        if (nt == 0) {
-        std::cout << "vertex " << vtx_idx << " with no tracks..." << std::endl;
         continue;
        }
-       // remove outliers
        if (nt < 2) {
          trk_ass_to_vtx.clear();
          continue;
        }
-      for (auto& trk_idx : trk_ass_to_vtx){
+      for (const auto& trk_idx : trk_ass_to_vtx){
         int vtx_ass_to_track = patavtx_soa.idv[trk_idx];
         if(vtx_ass_to_track!=vtx_idx) continue;
-           double patatrackPt = patatrack_tsoa.pt[trk_idx];
+           double patatrackPt = patatracks_tsoa.pt[trk_idx];
            if (patatrackPt < track_pT_min_)
              continue;
-           if (patatrack_tsoa.chi2(trk_idx) > track_chi2_max_)
+           if (patatracks_tsoa.chi2(trk_idx) > track_chi2_max_)
              continue;
            if (patatrackPt > track_pT_max_){
              patatrackPt = track_pT_max_;
@@ -609,7 +581,8 @@ namespace tau_hlt{
            pTSquaredSum.at(vtx_idx) += patatrackPt * patatrackPt;
          }
        }
-
+       // leave this for the moment - needed for Patatrack studies
+      /*
      auto minFOM_fromFrac = pTSquaredSum.at(patavtx_soa.sortInd[nv-1]) * fractionSumPt2_;
      if(minFOM_fromFrac==0){
        for (int j = nv - 1; j >= 0; --j){
@@ -618,7 +591,11 @@ namespace tau_hlt{
            break;
          }
        }
-     }
+     }*/
+     std::vector<size_t> sortIdxs(nv);
+     std::iota(sortIdxs.begin(), sortIdxs.end(), 0);
+     std::sort(sortIdxs.begin(), sortIdxs.end(), [&](size_t const i1, size_t const i2) { return pTSquaredSum[i1] > pTSquaredSum[i2]; });
+     auto const minFOM_fromFrac = pTSquaredSum[sortIdxs.front()] * fractionSumPt2_;
 
      for (int j = nv - 1; j >= 0; --j){
        auto idx = patavtx_soa.sortInd[j];
@@ -634,17 +611,12 @@ namespace tau_hlt{
    }
 
 
-   std::vector<float> L2TauNNProducer::impactParameter(int it, const PixelTrackHeterogeneous& patatracks, float patatrackPhi,const reco::BeamSpot &beamspot, const MagneticField *magfi ){
-     auto const &patatrack_tsoa = *patatracks.get();
-     auto const &fit = patatrack_tsoa.stateAtBS;
-     std::vector<float> impactParameters;
+   std::pair<float, float> L2TauNNProducer::impactParameter(int it, const pixelTrack::TrackSoA& patatracks_tsoa, float patatrackPhi,const reco::BeamSpot &beamspot, const MagneticField *magfi ){
+     auto const &fit = patatracks_tsoa.stateAtBS;
      /* dxy e dz */
-     //Rfit::Vector5d ipar, opar;
-     //Rfit::Matrix5d icov, ocov;
      riemannFit::Vector5d ipar, opar;
      riemannFit::Matrix5d icov, ocov;
      fit.copyToDense(ipar, icov, it);
-     //Rfit::transformToPerigeePlane(ipar, icov, opar, ocov);
      riemannFit::transformToPerigeePlane(ipar, icov, opar, ocov);
      LocalTrajectoryParameters lpar(opar(0), opar(1), opar(2), opar(3), opar(4), 1.);
      float sp = std::sin(patatrackPhi);
@@ -661,116 +633,127 @@ namespace tau_hlt{
      auto phi = pp.phi();
      float patatrackDxy = -vv.x()*std::sin(phi)+ vv.y()*std::cos(phi);
      float patatrackDz = (vv.z()*std::cos(lambda)- (vv.x()*std::cos(phi)+vv.y()*std::sin(phi))*std::sin(lambda))/std::cos(lambda);
-     impactParameters.push_back(patatrackDxy);
-     impactParameters.push_back(patatrackDz);
-     return impactParameters;
+     return std::make_pair(patatrackDxy, patatrackDz);
    }
 
 
-   void L2TauNNProducer::FillPatatracks(tensorflow::Tensor &cellGridMatrix, const std::vector<l1t::TauRef> allTaus, const PixelTrackHeterogeneous& patatracks, const ZVertexHeterogeneous& patavertices,const reco::BeamSpot &beamspot, const MagneticField *magfi){
+   void L2TauNNProducer::FillPatatracks(tensorflow::Tensor &cellGridMatrix, const std::vector<l1t::TauRef> allTaus, const pixelTrack::TrackSoA& patatracks_tsoa, const ZVertexSoA& patavtx_soa,const reco::BeamSpot &beamspot, const MagneticField *magfi){
 
-     auto getCell = [&](int tau_idx, int phi_idx, int eta_idx, NNInputs NNInput_idx)-> float& {
+     auto getCell = [&](int tau_idx, int phi_idx, int eta_idx, L2TauTagNNv1::NNInputs NNInput_idx)-> float& {
        return cellGridMatrix.tensor<float, 4>()(tau_idx,phi_idx, eta_idx, static_cast<int>(NNInput_idx));
      };
+
      int nTaus = static_cast<int>(allTaus.size());
      for (int tau_idx = 0; tau_idx< nTaus; tau_idx++){
        float tauEta = allTaus[tau_idx]->polarP4().eta();
        float tauPhi = allTaus[tau_idx]->polarP4().phi();
 
-       auto const &patatrack_tsoa = *patatracks.get();
-       auto maxTracks = patatrack_tsoa.stride();
-       auto const &patavtx_soa = *patavertices.get();
-       auto const *quality = patatrack_tsoa.qualityData();
+       auto maxTracks = patatracks_tsoa.stride();
+       auto const *quality = patatracks_tsoa.qualityData();
 
        std::vector<int> TrackGood;
        for (int32_t it = 0; it < maxTracks; ++it) {
-          //if(patatrack_tsoa.m_quality[it]<trackQuality::loose)
-          //  continue;
-          auto q = quality[it];
-          if (q != pixelTrack::Quality::loose)
-            continue;  // FIXME
-          auto nHits = patatrack_tsoa.nHits(it);
-          if (nHits == 0)
-            break;
-          if (nHits < 0)
-            continue;
+           auto nHits = patatracks_tsoa.nHits(it);
+           if (nHits == 0)
+             break;
+           auto q = quality[it];
+           // leave this for the moment - needed for Patatrack studies
+           //std::cout << static_cast<int>(q)<< std::endl;
+           if (q < pixelTrack::Quality::loose)
+             continue;
+           if (nHits < 0)
+             continue;
           TrackGood.push_back(it);
        }
+       // leave this for the moment - needed for Patatrack studies
+       /*for (int32_t it = 0; it < maxTracks; ++it) {
+        std::cout << "Patatrack number " << it << " over " << maxTracks <<" and " << TrackGood.size()<< " good tracks"
+         << " Pt = " << patatracks_tsoa.pt[it]
+         << " Eta = "<< patatracks_tsoa.eta(it)
+         << " Phi = "<< patatracks_tsoa.phi(it)
+         << " Charge = "<< patatracks_tsoa.charge(it)
+         << " Chi2OverNDof = "<< patatracks_tsoa.chi2(it)
+         << " nDof = " <<  (2 * patatracks_tsoa.nHits(it) - 5)
+         << " chi2 =  " << patatracks_tsoa.chi2(it) * (2 * patatracks_tsoa.nHits(it) - 5)
+         << " Dx y= " << impactParameter(it, patatracks_tsoa, patatracks_tsoa.phi(it),beamspot, magfi).first
+         << " Dz = " << impactParameter(it, patatracks_tsoa, patatracks_tsoa.phi(it),beamspot, magfi).second
+         << " Quality= "<<static_cast<int>(quality[it] )
+         << " assVtx= "<< patavtx_soa.idv[it]
+         << std::endl;
+       }*/
 
-       std::vector<int> VtxGood = GetVtxGood(patavertices,patatracks, TrackGood);
+       std::vector<int> VtxGood = SelectGoodVertices(patavtx_soa,patatracks_tsoa, TrackGood);
 
 
 
        for (int eta_idx = 0; eta_idx<nCellEta ; eta_idx++){
          for (int phi_idx = 0; phi_idx<nCellPhi ; phi_idx++){
-           getCell(tau_idx, phi_idx, eta_idx, NNInputs::nVertices)= VtxGood.size();
+           getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::nVertices)= VtxGood.size();
          }
        }
 
-       for (auto& it : TrackGood) {
-          //if(patatrack_tsoa.m_quality[it]<trackQuality::loose  ) continue;
-          float patatrackPt = patatrack_tsoa.pt[it];
+       for (const auto it : TrackGood) {
+          float patatrackPt = patatracks_tsoa.pt[it];
           if(patatrackPt<=0) continue;
-          float patatrackPhi = patatrack_tsoa.phi(it);
-          float patatrackEta = patatrack_tsoa.eta(it);
-          float patatrackCharge = patatrack_tsoa.charge(it);
-          float patatrackChi2OverNdof = patatrack_tsoa.chi2(it);
-          auto nHits = patatrack_tsoa.nHits(it);
+          float patatrackPhi = patatracks_tsoa.phi(it);
+          float patatrackEta = patatracks_tsoa.eta(it);
+          float patatrackCharge = patatracks_tsoa.charge(it);
+          float patatrackChi2OverNdof = patatracks_tsoa.chi2(it);
+          auto nHits = patatracks_tsoa.nHits(it);
           if (nHits <= 0) continue;
           int patatrackNdof = 2 * nHits - 5;
 
           int vtx_idx_assTrk = patavtx_soa.idv[it];
+          // leave this for the moment - needed for Patatrack studies
+          //std::cout << "Patatrack number " << it << " over " << maxTracks <<" and " << TrackGood.size()<< " good tracks" << " Pt= " << patatrackPt << " Eta= "<<patatrackEta << "Phi= "<<patatrackPhi << " Charge= "<<patatrackCharge <<  " Chi2OverNDof= "<<patatrackChi2OverNdof <<  " chi2=  "<<patatrackChi2OverNdof*patatrackNdof << " Ndof= "<<patatrackNdof << " Dxy= "<< impactParameter(it, patatracks_tsoa, patatrackPhi,beamspot, magfi).first <<" Dz= " << impactParameter(it, patatracks_tsoa, patatrackPhi,beamspot, magfi).second <<  " Quality= "<<static_cast<int>(quality[it]) << " assVtx= "<<vtx_idx_assTrk<< std::endl;
           if(reco::deltaR2(patatrackEta,patatrackPhi,tauEta,tauPhi)<dR2_max){
             float deta = patatrackEta-tauEta;
             int eta_idx = static_cast<int>(floor(((deta + dR_max) / dEta_width)));
             float dphi = reco::deltaPhi(patatrackPhi,tauPhi);
             int phi_idx = static_cast<int>(floor(((dphi + dR_max) / dPhi_width)));
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum)+=(patatrackPt);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackSize)+=1.;
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackChargeSum)+= patatrackCharge;
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDeltaEta)+=(deta*patatrackPt);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDeltaPhi)+=(dphi*patatrackPt);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackChi2OverNdof)+=(patatrackChi2OverNdof*patatrackPt);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackNdof)+= (patatrackNdof*patatrackPt);
-            std::vector<float> impactParameters = impactParameter(it, patatracks, patatrackPhi,beamspot, magfi );
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDxy)+= (impactParameters.at(0)*patatrackPt);
-            getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDz)+= (impactParameters.at(1)*patatrackPt);
-            //if(vtx_idx_assTrk>0 ){
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum)+=patatrackPt;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackSize)+=1.;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackChargeSum)+= patatrackCharge;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDeltaEta)+=deta*patatrackPt;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDeltaPhi)+=dphi*patatrackPt;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackChi2OverNdof)+=patatrackChi2OverNdof*patatrackPt;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackNdof)+= patatrackNdof*patatrackPt;
+            std::pair<float, float> impactParameters = impactParameter(it, patatracks_tsoa, patatrackPhi,beamspot, magfi );
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDxy)+= impactParameters.first*patatrackPt;
+            getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDz)+= impactParameters.second*patatrackPt;
             if((std::find(VtxGood.begin(), VtxGood.end(), vtx_idx_assTrk) != VtxGood.end())){
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSumWithVertex)+=(patatrackPt);
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackSizeWithVertex)+=1.;
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSumWithVertex)+=patatrackPt;
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackSizeWithVertex)+=1.;
             }
-          } // end if deltaR
-        } // end of loop over patatracks
+          }
+        }
 
         // normalize to sum and define stdDev
         for (int eta_idx = 0; eta_idx<nCellEta ; eta_idx++){
           for (int phi_idx = 0; phi_idx<nCellPhi ; phi_idx++){
-            if(getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum)>0.){
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDeltaEta) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDeltaEta) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum);
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDeltaPhi) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDeltaPhi) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum);
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackChi2OverNdof) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackChi2OverNdof) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum);
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackNdof) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackNdof) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum);
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDxy) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDxy) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum);
-              getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDz) = getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackDz) / getCell(tau_idx, phi_idx, eta_idx, NNInputs::PatatrackPtSum);
-            } // end if
-          } // end loop on phi
-        } // end loop on eta
-      } // end loop on taus
-   } // end function
+            if(getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum)>0.){
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDeltaEta) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDeltaEta) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum);
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDeltaPhi) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDeltaPhi) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum);
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackChi2OverNdof) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackChi2OverNdof) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum);
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackNdof) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackNdof) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum);
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDxy) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDxy) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum);
+              getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDz) = getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackDz) / getCell(tau_idx, phi_idx, eta_idx, L2TauTagNNv1::NNInputs::PatatrackPtSum);
+            }
+          }
+        }
+      }
+   }
 
 
    std::vector<float> L2TauNNProducer::GetTauScore(const tensorflow::Tensor &cellGridMatrix){
      std::vector<tensorflow::Tensor> pred_tensor;
-     std::vector<float> pred_vector;
-     tensorflow::run(L2cacheData->session, {{inputTensorName_, cellGridMatrix}}, {outputTensorName_}, &pred_tensor);
-     std::vector<int> tensor_shape;
-     for(int d=0; d<cellGridMatrix.shape().dims(); d++) {
-         tensor_shape.push_back(cellGridMatrix.shape().dim_size(d));
-     }
-     for(int tau_idx=0; tau_idx < tensor_shape.at(0); tau_idx++){
-       pred_vector.push_back(pred_tensor[0].matrix<float>()(tau_idx, 0));
-     }
+     tensorflow::run(L2cacheData_->session, {{inputTensorName_, cellGridMatrix}}, {outputTensorName_}, &pred_tensor);
+     const int nTau = cellGridMatrix.shape().dim_size(0);
+     std::vector<float> pred_vector(nTau);
+     for(int tau_idx=0; tau_idx < nTau; ++tau_idx){
+         pred_vector[tau_idx] = pred_tensor[0].matrix<float>()(tau_idx, 0);
+       }
+
 
      return pred_vector;
    }
@@ -778,113 +761,95 @@ namespace tau_hlt{
 
    void L2TauNNProducer::produce(edm::Event& event, const edm::EventSetup& eventsetup){
 
-     std::map<size_t, l1t::TauVectorRef> TauCollectionMap;   // map of l1Taucollections - input_index
-     std::vector<std::string> CollectionNamesMap;
-     CollectionNamesMap.reserve(L1TauDesc.size());
+     std::vector<std::vector<size_t>> TauCollectionMap(L1TauDesc_.size());
      l1t::TauVectorRef allTaus;
 
-     for (size_t inp_idx = 0; inp_idx<L1TauDesc.size(); inp_idx++){
-       CollectionNamesMap.push_back(L1TauDesc[inp_idx].CollectionName) ;
 
-       edm::Handle<trigger::TriggerFilterObjectWithRefs> l1TriggeredTaus;
-       event.getByToken(L1TauDesc[inp_idx].input_token, l1TriggeredTaus);
+     for (size_t inp_idx = 0; inp_idx<L1TauDesc_.size(); inp_idx++){
 
+       const auto l1TriggeredTaus = getHandle(event, L1TauDesc_[inp_idx].inputToken_);
        l1t::TauVectorRef l1Taus;
        l1TriggeredTaus->getObjects(trigger::TriggerL1Tau, l1Taus);
-       TauCollectionMap.insert(std::pair<size_t, l1t::TauVectorRef>(inp_idx, l1Taus));
+       TauCollectionMap.at(inp_idx).resize(l1Taus.size());
 
-       for(auto& i : l1Taus){
-
-         if(std::find(allTaus.begin(), allTaus.end(), i)!= allTaus.end()) continue;
-         allTaus.push_back(i);
+       for(size_t l1_idx = 0; l1_idx<l1Taus.size(); l1_idx++){
+         size_t tau_idx;
+         const auto iter = std::find(allTaus.begin(), allTaus.end(), l1Taus[l1_idx]);
+         if(iter!= allTaus.end()){
+          tau_idx = std::distance(allTaus.begin(), iter);
+         }
+         else{
+           allTaus.push_back(l1Taus[l1_idx]);
+           tau_idx = allTaus.size()-1;
+         }
+         TauCollectionMap.at(inp_idx).at(l1_idx)=tau_idx;
        }
 
      }
 
-     edm::Handle<EcalRecHitCollection> ebHandle;
-     edm::Handle<EcalRecHitCollection> eeHandle;
-     for (std::vector<edm::EDGetTokenT<EcalRecHitCollection> >::const_iterator i = ecal_tokens.begin(); i != ecal_tokens.end(); i++) {
-       edm::Handle<EcalRecHitCollection> ec_tmp;
-       event.getByToken(*i, ec_tmp);
-       if (ec_tmp->empty())
-         continue;
-       if ((ec_tmp->begin()->detid()).subdetId() == EcalBarrel) {
-         ebHandle = ec_tmp;
-       }
-       else if ((ec_tmp->begin()->detid()).subdetId() == EcalEndcap) {
-         eeHandle = ec_tmp;
-       }
-     }
-
-     std::vector<edm::EDGetTokenT<EcalRecHitCollection> >::const_iterator i;
-     for (i = ecal_tokens.begin(); i != ecal_tokens.end(); i++) {
-       edm::Handle<EcalRecHitCollection> ec;
-       event.getByToken(*i, ec);
-     }
+     edm::Handle<EcalRecHitCollection> ebCal;
+     event.getByToken(ebToken_, ebCal);
+     edm::Handle<EcalRecHitCollection> eeCal;
+     event.getByToken(eeToken_, eeCal);
      edm::Handle<HBHERecHitCollection> hbhe;
-     event.getByToken(hbhe_token, hbhe);
+     event.getByToken(hbheToken_, hbhe);
      edm::Handle<HORecHitCollection> ho;
-     event.getByToken(ho_token, ho);
+     event.getByToken(hoToken_, ho);
      edm::Handle<PixelTrackHeterogeneous> pataTracks;
-     event.getByToken(pataTracks_token, pataTracks);
+     event.getByToken(pataTracksToken_, pataTracks);
+     pixelTrack::TrackSoA patatracks_SoA = *(*pataTracks).get();
+
      edm::Handle<ZVertexHeterogeneous> pataVertices;
-     event.getByToken(pataVertices_token, pataVertices);
+     event.getByToken(pataVerticesToken_, pataVertices);
+     ZVertexSoA vertices_SoA = *(*pataVertices).get();
      edm::Handle<reco::BeamSpot> bsHandle;
-     event.getByToken(BeamSpot_token, bsHandle);
+     event.getByToken(BeamSpotToken_, bsHandle);
      edm::ESHandle<MagneticField> fieldESH;
      eventsetup.get<IdealMagneticFieldRecord>().get(fieldESH);
-     edm::ESHandle<CaloGeometry> Geometry = eventsetup.getHandle(Geometry_token);
+     edm::ESHandle<CaloGeometry> Geometry = eventsetup.getHandle(GeometryToken_);
      caloRecHitCollections caloRecHits;
      caloRecHits.hbhe= &*hbhe;
      caloRecHits.ho= &*ho;
-     caloRecHits.eb= &*ebHandle;
-     caloRecHits.ee= &*eeHandle;
+     caloRecHits.eb= &*ebCal;
+     caloRecHits.ee= &*eeCal;
      caloRecHits.Geometry = &*Geometry;
-     int evt_id = event.id().event();
 
      int nTaus = allTaus.size();
      tensorflow::Tensor cellGridMatrix(tensorflow::DT_FLOAT, { nTaus, nCellEta, nCellPhi, nVars });
-     for (int tau_idx = 0; tau_idx<nTaus ; tau_idx++){
-       for (int eta_idx = 0; eta_idx<nCellEta ; eta_idx++){
-         for (int phi_idx = 0; phi_idx<nCellPhi ; phi_idx++){
-           for (int var_idx = 0; var_idx<nVars ; var_idx++){
-             cellGridMatrix.tensor<float, 4>()(tau_idx,phi_idx, eta_idx,var_idx) = 0.;
-           }
-         }
-       }
+     const int n_inputs = nTaus * nCellEta * nCellPhi * nVars;
+     for (int input_idx = 0; input_idx < n_inputs; ++input_idx){
+       cellGridMatrix.flat<float>()(input_idx) = 0;
      }
      FillL1TauVars(cellGridMatrix, allTaus);
 
      FillCaloRecHits(cellGridMatrix, allTaus, caloRecHits);
 
-     FillPatatracks(cellGridMatrix, allTaus, *pataTracks,*pataVertices,*bsHandle, fieldESH.product());
+     FillPatatracks(cellGridMatrix, allTaus, patatracks_SoA,vertices_SoA,*bsHandle, fieldESH.product());
 
+     int evt_id = event.id().event();
      bool printoutevt=false;
-     if(debugLevel_>4){
-       if(evt_id==135505){
-         printoutevt=true;
+       if(debugLevel_>4){
+         if(evt_id==98008){
+           printoutevt=true;
+         }
        }
-     }
-     standardizeTensor(cellGridMatrix); // do not remove this when eliminating debugging lines!!
-     checknan(cellGridMatrix,printoutevt, debugLevel_);
+     standardizeTensor(cellGridMatrix);
+     if(debugLevel_>0)
+          checknan(cellGridMatrix, printoutevt,debugLevel_);
 
      std::vector<float> tau_score = GetTauScore(cellGridMatrix);
 
-     for(size_t inp_idx = 0; inp_idx<L1TauDesc.size(); inp_idx++){
-       std::vector<float> outcomes_;
-       for(int tau_idx = 0; tau_idx < nTaus; tau_idx++){
+     for(size_t inp_idx = 0; inp_idx<L1TauDesc_.size(); inp_idx++){
+       //std::vector<float> outcomes_;
+       auto tau_tags = std::make_unique<std::vector<float>>();
+       for(const auto& tau_idx : TauCollectionMap[inp_idx]){
          std::cout <<  evt_id << " \t " << (allTaus[tau_idx])->polarP4().pt() << " \t "<< tau_score.at(tau_idx) << std::endl;
-         //std::cout << "evt " << evt_id << " tau Pt " << (allTaus[tau_idx])->polarP4().pt() << " score "<< tau_score.at(tau_idx) << std::endl;
-         if(std::find( TauCollectionMap.at(inp_idx).begin(), TauCollectionMap.at(inp_idx).end() ,allTaus[tau_idx]) != TauCollectionMap.at(inp_idx).end()){
-           outcomes_.push_back(tau_score.at(tau_idx));
-         }
+         tau_tags.get()->push_back(tau_score.at(tau_idx ));
        }
-
-       auto output = std::make_unique<std::vector<float>>(outcomes_);
-       event.put(std::move(output),CollectionNamesMap.at(inp_idx));
+       event.put(std::move(tau_tags),L1TauDesc_[inp_idx].CollectionName);
      }
    }
-  }
+ }
 using L2TauNNProducer = tau_hlt::L2TauNNProducer;
 //define this as a plug-in
 #include "FWCore/Framework/interface/MakerMacros.h"

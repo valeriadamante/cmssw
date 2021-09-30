@@ -1,20 +1,20 @@
 /*
-Outcomes producedr for L2 hadronic tau selection
-*/
+ * \class L2TauTagFilter
+ *
+ * L2Tau identification using Convolutional NN.
+ *
+ * \author Konstantin Androsov, EPFL
+ *         Valeria D'Amante, Università di Siena and INFN Pisa
+ */
+
 // system include files
 #include <iostream>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <math.h>
-#include "Compression.h"
-#include "TMath.h"
 // user include files
-#include "FWCore/Framework/interface/stream/EDFilter.h"
+#include "HLTrigger/HLTcore/interface/HLTFilter.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -23,73 +23,78 @@ Outcomes producedr for L2 hadronic tau selection
 
 namespace tau_hlt{
 
-  class L2TauTagFilter : public edm::stream::EDFilter<> {
+  class L2TauTagFilter :  public HLTFilter {
 
   public:
-    explicit L2TauTagFilter(const edm::ParameterSet&);
-    ~L2TauTagFilter() override {}
-    static void fillDescriptions(edm::ConfigurationDescriptions&);
 
-    bool filter(edm::Event& event, const edm::EventSetup& eventsetup) ;
+    explicit L2TauTagFilter(const edm::ParameterSet& cfg):
+          HLTFilter(cfg),
+          nExpected_(cfg.getParameter<int>("nExpected")),
+          L1TauSrc_(cfg.getParameter<edm::InputTag>("L1TauSrc")),
+          L1TauSrcToken_(consumes<trigger::TriggerFilterObjectWithRefs>(L1TauSrc_)),
+          L2OutcomesToken_(consumes<std::vector<float>>(cfg.getParameter<edm::InputTag>("L2Outcomes"))),
+          DiscrWP_(cfg.getParameter<double>("DiscrWP"))
+          {
+
+          }
+    static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+      edm::ParameterSetDescription desc;
+      makeHLTFilterDescription(desc);
+      desc.add<int>("nExpected", 2)->setComment("number of expected taus per event");
+      desc.add<edm::InputTag>("L1TauSrc", edm::InputTag(""))->setComment("Which trigger should the L1 Taus collection pass");
+      desc.add<edm::InputTag>("L2Outcomes", edm::InputTag(""))->setComment("L2 CNN outcomes");
+      desc.add<double>("DiscrWP", 0.12267940863785043)->setComment("value of discriminator threshold");
+      descriptions.addWithDefaultLabel(desc);
+    }
+
+
+    bool hltFilter(edm::Event& event, const edm::EventSetup& eventsetup, trigger::TriggerFilterObjectWithRefs& filterproduct) const override{
+      if (saveTags())
+        filterproduct.addCollectionTag(L1TauSrc_);
+
+      bool result = false;
+      int nTauPassed = 0;
+
+      edm::Handle<trigger::TriggerFilterObjectWithRefs> l1TriggeredTaus;
+      event.getByToken(L1TauSrcToken_, l1TriggeredTaus);
+      l1t::TauVectorRef L1Taus;
+      l1TriggeredTaus->getObjects(trigger::TriggerL1Tau, L1Taus);
+
+      edm::Handle<std::vector<float>> L2Outcomes_;
+      event.getByToken(L2OutcomesToken_, L2Outcomes_);
+      const auto L2Outcomes = *L2Outcomes_;
+      if(L2Outcomes.size()!=L1Taus.size()){
+        std::cout<< "CNN output size != L1 taus size"<<std::endl;
+        return false;
+      }
+      for(size_t l1_idx = 0; l1_idx<L1Taus.size(); l1_idx++){
+        if(L2Outcomes[l1_idx] >= DiscrWP_){
+          filterproduct.addObject(nTauPassed, L1Taus[l1_idx]);
+          nTauPassed++;
+        }
+        //if(nTauPassed == nExpected){
+        //  return true;
+        //}
+      }
+
+      if(nTauPassed >= nExpected_){
+        result = true;
+      }
+
+      return result;
+    }
+
+
 
   private:
-
-
-  private:
-    int debugLevel;
-    std::string processName;
-    //std::vector<float> l2Outcomes;
-    edm::EDGetTokenT<std::vector<float>> l2Outcomes_token;
-    double discr_threshold;
+    const int nExpected_;
+    const edm::InputTag L1TauSrc_;
+    const edm::EDGetTokenT<trigger::TriggerFilterObjectWithRefs> L1TauSrcToken_;
+    const edm::EDGetTokenT<std::vector<float>> L2OutcomesToken_;
+    const double DiscrWP_;
 
   };
 
-  void L2TauTagFilter::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
-    edm::ParameterSetDescription desc;
-    desc.add<int>("debugLevel", 0)->setComment("set debug level for printing out info");
-    desc.add<std::string>("processName","")->setComment("Name of the process");
-    desc.add<edm::InputTag>("L2outcomes", edm::InputTag(""))->setComment("L2 CNN outcomes");
-    desc.add<double>("discr_threshold", 0.12267940863785043)->setComment("value of discriminator threshold");
-    descriptions.addWithDefaultLabel(desc);
-  }
-
-  L2TauTagFilter::L2TauTagFilter(const edm::ParameterSet& cfg):
-        debugLevel(cfg.getParameter<int>("debugLevel")),
-        processName(cfg.getParameter<std::string>("processName")),
-        l2Outcomes_token(consumes<std::vector<float>>(cfg.getParameter<edm::InputTag>("L2outcomes"))),
-        discr_threshold(cfg.getParameter<double>("discr_threshold"))
-        {
-
-        }
-
-
-   bool L2TauTagFilter::filter(edm::Event& event, const edm::EventSetup& eventsetup){
-     bool result = false;
-     int nTauPassed = 0;
-     edm::Handle<std::vector<float>> l2Outcomes;
-     event.getByToken(l2Outcomes_token, l2Outcomes);
-
-
-     //edm::Handle<trigger::TriggerFilterObjectWithRefs> l1TriggeredTaus;
-     //event.getByToken(L1TauDesc[inp_idx].input_token, l1TriggeredTaus);
-     int evt_id = event.id().event();
-
-     for(auto& outcome : *l2Outcomes){
-        if(outcome > discr_threshold){
-          nTauPassed++;
-        }
-        if(nTauPassed == 2){
-          //std::cout << "evt " << evt_id << " has at least two taus" << std::endl;
-          return true;
-        }
-     }
-     if(nTauPassed >= 2 ){
-       std::cout << "evt " << evt_id << " has at least two taus" << std::endl;
-       result = true;
-     }
-
-     return result;
-   }
   }
 using L2TauTagFilter = tau_hlt::L2TauTagFilter;
 //define this as a plug-in
