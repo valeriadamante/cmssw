@@ -3,8 +3,8 @@
  *
  * L2Tau identification using Convolutional NN.
  *
- * \author Konstantin Androsov, EPFL
- *         Valeria D'Amante, Università di Siena and INFN Pisa
+ * \author Valeria D'Amante, Università di Siena and INFN Pisa
+ *         Konstantin Androsov, EPFL and ETHZ
 */
 #include <memory>
 #include <boost/property_tree/json_parser.hpp>

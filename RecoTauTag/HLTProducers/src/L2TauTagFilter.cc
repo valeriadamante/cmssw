@@ -3,8 +3,8 @@
  *
  * L2Tau identification using Convolutional NN.
  *
- * \author Konstantin Androsov, EPFL
- *         Valeria D'Amante, Università di Siena and INFN Pisa
+ * \author Valeria D'Amante, Università di Siena and INFN Pisa
+ *         Konstantin Androsov, EPFL and ETHZ
  */
 
 // system include files
@@ -14,6 +14,7 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Utilities/interface/InputTag.h"
@@ -48,7 +49,6 @@ namespace tau_hlt {
       if (saveTags())
         filterproduct.addCollectionTag(L1TauSrc_);
 
-      bool result = false;
       int nTauPassed = 0;
 
       edm::Handle<trigger::TriggerFilterObjectWithRefs> l1TriggeredTaus;
@@ -60,7 +60,7 @@ namespace tau_hlt {
       event.getByToken(L2OutcomesToken_, L2Outcomes_);
       const auto L2Outcomes = *L2Outcomes_;
       if (L2Outcomes.size() != L1Taus.size()) {
-        std::cout << "CNN output size != L1 taus size" << std::endl;
+        throw cms::Exception("Inconsistent Data", "L2TauTagFilter::hltFilter") << "CNN output size != L1 taus size \n";
         return false;
       }
       for (size_t l1_idx = 0; l1_idx < L1Taus.size(); l1_idx++) {
@@ -68,16 +68,9 @@ namespace tau_hlt {
           filterproduct.addObject(nTauPassed, L1Taus[l1_idx]);
           nTauPassed++;
         }
-        //if(nTauPassed == nExpected){
-        //  return true;
-        //}
       }
 
-      if (nTauPassed >= nExpected_) {
-        result = true;
-      }
-
-      return result;
+      return nTauPassed >= nExpected_;
     }
 
   private:

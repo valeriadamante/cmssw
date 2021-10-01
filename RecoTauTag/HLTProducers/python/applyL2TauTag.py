@@ -3,21 +3,29 @@ from HLTrigger.Configuration.customizeHLTforPatatrack import customizeHLTforPata
 from RecoTauTag.HLTProducers.l2TauNNProducer_cfi import *
 from RecoTauTag.HLTProducers.l2TauTagFilter_cfi import *
 
+def insertL2TauSequence(process, path, ref_module):
+    ref_idx = path.index(ref_module)
+    path.insert(ref_idx + 1, process.hltL2TauTagNNSequence)
+    path.insert(ref_idx + 2, process.hltL2DoubleTauTagNNFilter)
+    path.insert(ref_idx + 3, process.HLTGlobalPFTauHPSSequence)
+
+
 def update(process):
     thWp = {
-            'WP_Tight': 0.180858813224404,
-            'WP_Medium': 0.12267940863785043,
-            'WP_Loose': 0.08411243185219064,
+            'Tight': 0.180858813224404,
+            'Medium': 0.12267940863785043,
+            'Loose': 0.08411243185219064,
     }
 
     working_point = "Tight"
-    rateWP=("WP_{}").format(working_point)
+    rateWP=("{}").format(working_point)
     graphPath = 'RecoTauTag/TrainingFiles/L2TauNNTag/L2TauTag_Run3v1.pb'
 
     normalizationDict = 'RecoTauTag/TrainingFiles/L2TauNNTag/NormalizationDict.json'
 
 
-    process = customizeHLTforPatatrackTriplets(process)
+    if 'statusOnGPU' not in process. __dict__:
+        process = customizeHLTforPatatrackTriplets(process)
     process.hltL2TauTagNNProducer = l2TauNNProducer.clone(
         debugLevel = 0,
         L1Taus= cms.VPSet(
@@ -40,8 +48,8 @@ def update(process):
         nExpected = 2,
         L1TauSrc = cms.InputTag('hltL1sDoubleTauBigOR'),
         L2Outcomes = ('hltL2TauTagNNProducer', 'DoubleTau'),
-        DiscrWP = cms.double(thWp[rateWP])
-    ) 
+        DiscrWP = cms.float(thWp[rateWP])
+    )
     # L2 updated Sequence
     process.hltL2TauTagNNSequence = cms.Sequence(process.HLTDoCaloSequence + process.hltL1sDoubleTauBigOR + process.hltL2TauTagNNProducer)
 
@@ -57,26 +65,13 @@ def update(process):
     process.hltHpsPFTauMediumAbsOrRelChargedIsolationDiscriminatorReg.PFTauProducer = cms.InputTag( "hltHpsPFTauProducer" )
     process.hltHpsSelectedPFTausTrackPt1MediumChargedIsolationReg.src = cms.InputTag( "hltHpsPFTauProducer" )
 
-    # re-define path with l2 updated sequence
-    #process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4 = cms.Path(process.HLTBeginSequence + process.hltL1sDoubleTauBigOR +
-    #process.hltPreDoubleMediumChargedIsoPFTauHPS35Trk1eta2p1Reg +  process.hltL2TauTagNNSequence + process.hltL2DoubleTauTagNNFilter + process.HLTGlobalPFTauHPSSequence +
-    #process.HLTHPSDoublePFTauPt35Eta2p1Trk1Reg + process.HLTHPSMediumChargedIsoPFTauSequenceReg +
-    #process.hltHpsSelectedPFTausTrackPt1MediumChargedIsolationReg + process.hltHpsDoublePFTau35TrackPt1MediumChargedIsolationReg +
-    #process.hltHpsL1JetsHLTDoublePFTauTrackPt1MediumChargedIsolationMatchReg +
-    #process.hltHpsDoublePFTau35TrackPt1MediumChargedIsolationL1HLTMatchedReg + process.hltHpsDoublePFTau35TrackPt1MediumChargedIsolationDz02Reg +
-    #process.HLTEndSequence, process.HLTDoLocalPixelTask, process.HLTRecoPixelTracksTask, process.HLTRecopixelvertexingTask)
-
     process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.HLTL2TauJetsL1TauSeededSequence)
     process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.hltDoubleL2Tau26eta2p2)
     process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.HLTL2p5IsoTauL1TauSeededSequence)
     process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.hltDoubleL2IsoTau26eta2p2 )
-    process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.HLTRegionalPFTauHPSSequence )
+    process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.HLTRegionalPFTauHPSSequence ) 
 
-    process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.insert(3, process.hltL2TauTagNNSequence)
-    process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.insert(4, process.hltL2DoubleTauTagNNFilter)
-    process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.insert(5, process.HLTGlobalPFTauHPSSequence)
+    insertL2TauSequence(process, process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4, process.hltPreDoubleMediumChargedIsoPFTauHPS35Trk1eta2p1Reg)
 
-
-    #process.schedule = cms.Schedule(*[ process.HLTriggerFirstPath, process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4, process.HLTriggerFinalPath, process.endjob_step ], tasks=[process.patAlgosToolsTask])
 
     return process
