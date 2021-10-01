@@ -8,10 +8,10 @@ import re
 options = VarParsing('analysis')
 options.register('sampleType', 'Run3MC', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  "Indicates the sample type: Run3MC or Run2Data")
-#options.register('fileList', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
-#                 "List of root files to process.")
-#options.register('fileNamePrefix', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
-#                 "Prefix to add to input file names.")
+options.register('fileList', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
+                 "List of root files to process.")
+options.register('fileNamePrefix', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
+                 "Prefix to add to input file names.")
 options.register('lumiFile', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  "JSON file with lumi mask.")
 options.register('eventList', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
@@ -43,8 +43,12 @@ if not isData:
 process.source = cms.Source('PoolSource', fileNames = cms.untracked.vstring())
 
 # Input source
-'''
-from TauMLTools.Production.readFileList import *
+def readFileList(fileList, inputFileName, fileNamePrefix):
+    with open(inputFileName, 'r') as inputFile:
+        for name in inputFile.readlines():
+            if len(name) > 0 and name[0] != '#':
+                fileList.append(fileNamePrefix + name)
+
 if len(options.fileList) > 0:
     readFileList(process.source.fileNames, options.fileList, options.fileNamePrefix)
 elif len(options.inputFiles) > 0:
@@ -53,12 +57,12 @@ else:
     #print(options.inputFiles)
     #print(options.fileList)
 
-    #process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/1E71AB01-1FF5-F049-94D4-642325AFF937.root')  # 5000 evts
-'''
-process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/A95D23CB-88AC-6849-8980-5D12C8417007.root') # 11000 evts
+    #process.source.fileNames = cms.untracked.vstring('file:/store/mc/Run3Winter20DRPremixMiniAOD/VBFHToTauTau_M125_TuneCUETP8M1_14TeV_powheg_pythia8/GEN-SIM-RAW/110X_mcRun3_2021_realistic_v6-v1/20000/1E71AB01-1FF5-F049-94D4-642325AFF937.root')  # 5000 evts
 
-    #process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/F2760E46-A3DB-DA4F-A6EC-525C10EDCBC7.root') # 1000 evts
-    #process.source.fileNames = cms.untracked.vstring('file:/eos/home-v/vdamante/657F58E7-64E3-AA4D-B505-6D0F39997487.root')
+    process.source.fileNames = cms.untracked.vstring('/store/mc/Run3Winter20DRPremixMiniAOD/VBFHToTauTau_M125_TuneCUETP8M1_14TeV_powheg_pythia8/GEN-SIM-RAW/110X_mcRun3_2021_realistic_v6-v1/20000/A95D23CB-88AC-6849-8980-5D12C8417007.root') # 11000 evts
+
+    #process.source.fileNames = cms.untracked.vstring('file:/store/mc/Run3Winter20DRPremixMiniAOD/VBFHToTauTau_M125_TuneCUETP8M1_14TeV_powheg_pythia8/GEN-SIM-RAW/110X_mcRun3_2021_realistic_v6-v1/20000/F2760E46-A3DB-DA4F-A6EC-525C10EDCBC7.root') # 1000 evts
+    #process.source.fileNames = cms.untracked.vstring('file:/store/mc/Run3Winter20DRPremixMiniAOD/VBFHToTauTau_M125_TuneCUETP8M1_14TeV_powheg_pythia8/GEN-SIM-RAW/110X_mcRun3_2021_realistic_v6-v1/20000/657F58E7-64E3-AA4D-B505-6D0F39997487.root')
 
 
 
@@ -174,8 +178,7 @@ process = customiseEarlyDelete(process)
 if options.dumpPython:
     print (process.dumpPython())
 
-process.options.wantSummary = cms.untracked.bool(False)
-if options.Summary:
-   process.options.wantSummary = cms.untracked.bool(True)
+process.options.wantSummary = cms.untracked.bool(options.Summary)
+
 
 # End adding early deletion

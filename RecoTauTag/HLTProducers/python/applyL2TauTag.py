@@ -18,7 +18,6 @@ def update(process):
     }
 
     working_point = "Tight"
-    rateWP=("{}").format(working_point)
     graphPath = 'RecoTauTag/TrainingFiles/L2TauNNTag/L2TauTag_Run3v1.pb'
 
     normalizationDict = 'RecoTauTag/TrainingFiles/L2TauNNTag/NormalizationDict.json'
@@ -48,7 +47,7 @@ def update(process):
         nExpected = 2,
         L1TauSrc = cms.InputTag('hltL1sDoubleTauBigOR'),
         L2Outcomes = ('hltL2TauTagNNProducer', 'DoubleTau'),
-        DiscrWP = cms.float(thWp[rateWP])
+        DiscrWP = cms.double(thWp[working_point])
     )
     # L2 updated Sequence
     process.hltL2TauTagNNSequence = cms.Sequence(process.HLTDoCaloSequence + process.hltL1sDoubleTauBigOR + process.hltL2TauTagNNProducer)
@@ -69,7 +68,7 @@ def update(process):
     process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.hltDoubleL2Tau26eta2p2)
     process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.HLTL2p5IsoTauL1TauSeededSequence)
     process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.hltDoubleL2IsoTau26eta2p2 )
-    process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.HLTRegionalPFTauHPSSequence ) 
+    process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4.remove(process.HLTRegionalPFTauHPSSequence )
 
     insertL2TauSequence(process, process.HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4, process.hltPreDoubleMediumChargedIsoPFTauHPS35Trk1eta2p1Reg)
 
