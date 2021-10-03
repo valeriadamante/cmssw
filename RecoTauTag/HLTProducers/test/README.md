@@ -1,6 +1,6 @@
-### Instruction to run the L2TauNNTag test
+## Instruction to run the L2TauNNTag test
 
-## Extract di-tau path from confDB
+### Extract di-tau path from confDB
 To get the CMSSW distribution:
 ```
 export SCRAM_ARCH=slc7_amd64_gcc900
@@ -34,7 +34,7 @@ hltGetConfiguration HLTriggerFirstPath,HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1
 
 please, check that all the paths have been correctly saved in the file CMSSW_12_1_0_pre3/src/HLTrigger/Configuration/HLT_User_cff.py *  otherwise you have to manually add all the missing paths (and the dependent sequences)
 
-## Run the L2TauNNTag test
+### Run the L2TauNNTag test
 You need to authenticate to run the test command since it exploits files that are saved on store. So you need to run the command:
 ```
 voms-proxy-init --rfc --voms cms
@@ -49,6 +49,6 @@ cmsRun RecoTauTag/HLTProducers/test/testL2TauTagNN.py
 ```
 
 if you want to run on a limited number of events :
-``` 
+```
 cmsRun RecoTauTag/HLTProducers/test/testL2TauTagNN.py maxEvents=20
 ```
