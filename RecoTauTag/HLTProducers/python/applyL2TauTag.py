@@ -7,7 +7,8 @@ def insertL2TauSequence(process, path, ref_module):
     ref_idx = path.index(ref_module)
     path.insert(ref_idx + 1, process.hltL2TauTagNNSequence)
     path.insert(ref_idx + 2, process.hltL2DoubleTauTagNNFilter)
-    path.insert(ref_idx + 3, process.HLTGlobalPFTauHPSSequence)
+    if process.HLTGlobalPFTauHPSSequence not in process.paths:
+        path.insert(ref_idx + 3, process.HLTGlobalPFTauHPSSequence)
 
 
 def update(process):
@@ -26,7 +27,7 @@ def update(process):
     if 'statusOnGPU' not in process. __dict__:
         process = customizeHLTforPatatrackTriplets(process)
     process.hltL2TauTagNNProducer = l2TauNNProducer.clone(
-        debugLevel = 0,
+        debugLevel = 1,
         L1Taus= cms.VPSet(
             cms.PSet(
                 L1CollectionName = cms.string('DoubleTau'),
