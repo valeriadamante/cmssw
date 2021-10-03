@@ -1,7 +1,7 @@
 ### Instruction to run the L2TauNNTag test
 
 ## Extract di-tau path from confDB
-1. To get the CMSSW distribution:
+To get the CMSSW distribution:
 * export SCRAM_ARCH=slc7_amd64_gcc900
 * cmsrel CMSSW_12_1_0_pre3
 * cd CMSSW_12_1_0_pre3/src
@@ -9,7 +9,7 @@
 *  git cms-init
 *  git cms-addpkg HLTrigger/Configuration
 
-1. You also need to have this repository in CMSSW_12_1_0_pre3/src. If you don't have it, the command to run is:
+You also need to have this repository in CMSSW_12_1_0_pre3/src. If you don't have it, the command to run is:
  cd CMSSW_12_1_0_pre3/src
 *  cmsenv  
 *  git cms-addpkg RecoTauTag/HLTProducers
@@ -18,22 +18,21 @@
 *  git checkout -b L2TauTagNN-debug
 *  scram b -j8
 
-1. You also need the RecoTauTag-Training files. If you don't have it, run the command:
+You also need the RecoTauTag-Training files. If you don't have it, run the command:
 *  git clone git@github.com:cms-data/RecoTauTag-TrainingFiles.git RecoTauTag/TrainingFiles
 
-1. To get a user configuration file with the paths you need run the command: HLTriggerFirstPath,HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4,HLTGlobalPFTauHPSSequence,HLTriggerFinalPath --unprescale --cff > HLTrigger/Configuration/python/HLT_User_cff.py
+To get a user configuration file with the paths you need run the command: HLTriggerFirstPath,HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4,HLTGlobalPFTauHPSSequence,HLTriggerFinalPath --unprescale --cff > HLTrigger/Configuration/python/HLT_User_cff.py
 \n \t please, check that all the paths have been correctly saved in the file CMSSW_12_1_0_pre3/src/HLTrigger/Configuration/HLT_User_cff.py *  otherwise you have to manually add all the missing paths (and the dependent sequences)
 
 ## Run the L2TauNNTag test
-1. You need to authenticate to run the test command since it exploits files that are saved on store. So you need to run the command:
+You need to authenticate to run the test command since it exploits files that are saved on store. So you need to run the command:
 voms-proxy-init --rfc --voms cms
 
-1. So you are now ready to run the test for L2TauTagNN
+So you are now ready to run the test for L2TauTagNN
 * cd CMSSW_12_1_0_pre3/src
 * cmsenv
 * scram b -j 10
 * cmsRun RecoTauTag/HLTProducers/test/testL2TauTagNN.py
 
-
-\n\tif you want to run on a limited number of events :
-\n\tcmsRun RecoTauTag/HLTProducers/test/testL2TauTagNN.py maxEvents=20
+* if you want to run on a limited number of events :
+  cmsRun RecoTauTag/HLTProducers/test/testL2TauTagNN.py maxEvents=20
