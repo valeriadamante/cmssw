@@ -22,7 +22,8 @@ You also need the RecoTauTag-Training files. If you don't have it, run the comma
 *  git clone git@github.com:cms-data/RecoTauTag-TrainingFiles.git RecoTauTag/TrainingFiles
 
 To get a user configuration file with the paths you need run the command: HLTriggerFirstPath,HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4,HLTGlobalPFTauHPSSequence,HLTriggerFinalPath --unprescale --cff > HLTrigger/Configuration/python/HLT_User_cff.py
-\n \t please, check that all the paths have been correctly saved in the file CMSSW_12_1_0_pre3/src/HLTrigger/Configuration/HLT_User_cff.py *  otherwise you have to manually add all the missing paths (and the dependent sequences)
+
+please, check that all the paths have been correctly saved in the file CMSSW_12_1_0_pre3/src/HLTrigger/Configuration/HLT_User_cff.py *  otherwise you have to manually add all the missing paths (and the dependent sequences)
 
 ## Run the L2TauNNTag test
 You need to authenticate to run the test command since it exploits files that are saved on store. So you need to run the command:
