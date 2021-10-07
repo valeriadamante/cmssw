@@ -22,10 +22,9 @@ git clone git@github.com:valeriadamante/RecoTauTag-TrainingFiles.git RecoTauTag/
 ### L2TauNNTag test
 To get a user configuration file with the paths you need run the following command:
 ```
-hltGetConfiguration HLTriggerFirstPath,HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4,HLTGlobalPFTauHPSSequence,HLTriggerFinalPath --unprescale --cff > HLTrigger/Configuration/python/HLT_User_cff.py
+hltGetConfiguration /dev/CMSSW_12_0_0/GRun/V6 --paths HLTriggerFirstPath,HLT_DoubleMediumChargedIsoPFTauHPS35_Trk1_eta2p1_Reg_v4,HLT_VBF_DoubleTightChargedIsoPFTauHPS20_Trk1_eta2p1_v1,HLTriggerFinalPath  --unprescale --cff
 ```
-
-please, check that all the paths have been correctly saved in the file CMSSW_12_1_0_pre3/src/HLTrigger/Configuration/HLT_User_cff.py *  otherwise you have to manually add all the missing paths (and the dependent sequences). I had to manually inser the HLTGlobalPFTauHPSSequence.
+In this way all the paths should be included correctly.
 
 
 You need to authenticate to run the test command since it exploits files that are saved on store. So you need to run the command:
