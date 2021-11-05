@@ -55,7 +55,7 @@ public:
       throw cms::Exception("Inconsistent Data", "L2TauTagFilter::hltFilter") << "CNN output size != L1 taus size \n";
     }
     for (size_t l1_idx = 0; l1_idx < l1Taus.size(); l1_idx++) {
-      if (L2Outcomes[l1_idx] >= discrWP_) {
+      if (L2Outcomes[l1_idx] >= discrWP_ || l1Taus[l1_idx]->polarP4().pt()>250) {
         filterproduct.addObject(nTauPassed, l1Taus[l1_idx]);
         nTauPassed++;
       }

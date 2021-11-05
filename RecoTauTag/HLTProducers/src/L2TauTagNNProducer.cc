@@ -257,8 +257,11 @@ void L2TauNNProducer::fillDescriptions(edm::ConfigurationDescriptions& descripti
   edm::ParameterSetDescription l1TausPset;
   l1TausPset.add<std::string>("L1CollectionName", "")->setComment("Name of collections");
   l1TausPset.add<edm::InputTag>("L1TauTrigger", edm::InputTag(""))
-      ->setComment("Which trigger should the L1 Taus collection pass");
-  desc.addVPSet("L1Taus", l1TausPset);
+            ->setComment("Which trigger should the L1 Taus collection pass");
+  edm::ParameterSet l1TausPSetDefault;
+  l1TausPSetDefault.addParameter<std::string>("L1CollectionName", "DoubleTau");
+  l1TausPSetDefault.addParameter<edm::InputTag>("L1TauTrigger", edm::InputTag("hltL1sDoubleTauBigOR"));
+  desc.addVPSet("L1Taus", l1TausPset, {l1TausPSetDefault});
   desc.add<edm::InputTag>("hbheInput", edm::InputTag(""))->setComment("HBHE recHit collection");
   desc.add<edm::InputTag>("hoInput", edm::InputTag(""))->setComment("HO recHit Collection");
   desc.add<edm::InputTag>("ebInput", edm::InputTag(""))->setComment("EB recHit Collection");
