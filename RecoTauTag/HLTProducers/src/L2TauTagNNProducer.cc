@@ -184,8 +184,7 @@ private:
                       const reco::BeamSpot& beamspot,
                       const MagneticField* magfi);
   std::vector<int> selectGoodVertices(const ZVertexSoA& patavtx_soa,
-                                      const pixelTrack::TrackSoA& patatracks_tsoa,
-                                      const std::vector<int>& TrackGood);
+                                      const pixelTrack::TrackSoA& patatracks_tsoa );
   std::pair<float, float> impactParameter(int it,
                                           const pixelTrack::TrackSoA& patatracks_tsoa,
                                           float patatrackPhi,
@@ -567,8 +566,7 @@ void L2TauNNProducer::fillCaloRecHits(tensorflow::Tensor& cellGridMatrix,
 }
 
 std::vector<int> L2TauNNProducer::selectGoodVertices(const ZVertexSoA& patavtx_soa,
-                                                     const pixelTrack::TrackSoA& patatracks_tsoa,
-                                                     const std::vector<int>& TrackGood) {
+                                                     const pixelTrack::TrackSoA& patatracks_tsoa) {
   auto maxTracks = patatracks_tsoa.stride();
   const int nv = patavtx_soa.nvFinal;
   std::vector<int> VtxGood;
@@ -577,7 +575,7 @@ std::vector<int> L2TauNNProducer::selectGoodVertices(const ZVertexSoA& patavtx_s
   VtxGood.reserve(nv);
 
   std::vector<double> maxChi2_;
-  std::vector<double> pTSquaredSum(nv);
+  std::vector<double> pTSquaredSum(nv,0);
 
   for (int j = nv - 1; j >= 0; --j) {
     std::vector<int> trk_ass_to_vtx;
@@ -597,6 +595,9 @@ std::vector<int> L2TauNNProducer::selectGoodVertices(const ZVertexSoA& patavtx_s
       continue;
     }
     for (const auto& trk_idx : trk_ass_to_vtx) {
+      auto nHits = patatracks_tsoa.nHits(trk_idx);
+      if (nHits == 0)
+        break;
       int vtx_ass_to_track = patavtx_soa.idv[trk_idx];
       if (vtx_ass_to_track != vtx_idx)
         continue;
@@ -699,7 +700,7 @@ void L2TauNNProducer::fillPatatracks(tensorflow::Tensor& cellGridMatrix,
       TrackGood.push_back(it);
     }
 
-    std::vector<int> VtxGood = selectGoodVertices(patavtx_soa, patatracks_tsoa, TrackGood);
+    std::vector<int> VtxGood = selectGoodVertices(patavtx_soa, patatracks_tsoa);
 
     for (const auto it : TrackGood) {
       const float patatrackPt = patatracks_tsoa.pt[it];
