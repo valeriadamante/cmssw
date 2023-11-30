@@ -127,7 +127,7 @@ triggerObjectTable = triggerObjectTableProducer.clone(
         ),
         Tau = cms.PSet(
             id = cms.int32(15),
-            sel = cms.string("type(84) && pt > 5 && coll('*Tau*') && ( filter('*Loose*') || filter('*Medium*') || filter('*Tight*') || filter('*DeepTau*') || filter('*ChargedIso*') || filter('hltL2Tau*IsoFilter*') || filter('hltL2TauTagNNFilter*') || filter('*OverlapFilter*') || filter('*DisplPFTau*') || filter('*VBFIsoTau*') || filter('*Monitoring*') || filter('*DoublePFTau*') || filter('*SingleTau*') || filter('hlt*SelectedPFTau') || filter('*ETau*') || filter('*MuTau*') )"), #All trigger objects from a Tau collection + passing at least one filter
+            sel = cms.string("type(84) && pt > 5 && coll('*Tau*') && ( filter('*Loose*') || filter('*Medium*') || filter('*Tight*') || filter('*DeepTau*') || filter('*ChargedIso*') || filter('*Hps*') || filter('*MatchedVBFIsoTau*') || filter('hltL2Tau*IsoFilter*') || filter('hltL2TauTagNNFilter*') || filter('*OverlapFilter*') || filter('*DisplPFTau*') || filter('*VBFIsoTau*') || filter('*Monitoring*') || filter('*DoublePFTau*') || filter('*SingleTau*') ||filter('*2*DiJetCorr*') || filter('*OneProng*') || filter('*Dxy*') || filter('hlt*SelectedPFTau') || filter('*ETau*') || filter('*MuTau*') )"), #All trigger objects from a Tau collection + passing at least one filter
             l1seed = cms.string("type(-100)"), l1deltaR = cms.double(0.3),
             l2seed = cms.string("type(84) && coll('hltL2TauJetsL1IsoTauSeeded')"),  l2deltaR = cms.double(0.3),
             skipObjectsNotPassingQualityBits = cms.bool(True),
