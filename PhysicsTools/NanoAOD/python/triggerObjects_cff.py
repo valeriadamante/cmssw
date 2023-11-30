@@ -140,7 +140,7 @@ triggerObjectTable = triggerObjectTableProducer.clone(
                 mksel("filter('*Hps*')","HPS"),
                 mksel("filter('*ETau*')","e-tau inside filter"),
                 mksel("filter('*MuTau*')","mu-tau inside filter"),
-                mksel("filter('*SingleTau*')","single-tau inside filter"),
+                mksel("filter('hlt*SingleTau*')","single-tau inside filter"),
                 mksel("filter('hltMatchedVBFIsoTau*')","VBF matching"),
                 mksel("filter('hlt*DoublePFTau*L1HLTMatched')","di-tau"),
                 mksel("filter('hltHpsOverlapFilterIsoEle*WPTightGsf*PFTau*')","e-tau"),
