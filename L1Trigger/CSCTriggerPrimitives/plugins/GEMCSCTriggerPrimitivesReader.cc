@@ -17,6 +17,9 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/Framework/interface/ESHandle.h"
+#include "DataFormats/CSCDigi/interface/CSCConstants.h"
+#include "DataFormats/Common/interface/Handle.h"
+#include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
@@ -29,6 +32,7 @@
 #include "TrackingTools/GeomPropagators/interface/Propagator.h"
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "Validation/MuonCSCDigis/interface/CSCStubMatcher.h"
 
 #include "MagneticField/Engine/interface/MagneticField.h"
 
@@ -171,9 +175,6 @@ private:
   edm::EDGetTokenT<std::vector<LCTDebugobject>> lctdebugtoken_data;
   edm::EDGetTokenT<std::vector<LCTDebugobject>> lctdebugtoken_emul;
 
-  // edm::ESHandle<GEMGeometry> GEMGeometry_;
-  // const edm::ESGetToken<GEMGeometry, MuonGeometryRecord> gemGeomToken_;
-  const edm::ESGetToken<CSCGeometry, MuonGeometryRecord> cscGeomToken_;
   // // Producer's labels
   std::string lctProducerData_;
   std::string lctProducerEmul_;
@@ -181,26 +182,26 @@ private:
 
   bool debug;
   const CSCGeometry* cscGeometry_;
-  edm::ESHandle<CSCGeometry> CSCGeometry_;
-  // const edm::ESGetToken<CSCGeometry, MuonGeometryRecord> geomToken_;
+  edm::ESGetToken<CSCGeometry, MuonGeometryRecord> cscGeomToken_;
+  // edm::ESHandle<CSCGeometry> CSCGeometry_;
   // const edm::ConsumesCollector iC;
 };
 
 
-GEMCSCTriggerPrimitivesReader::GEMCSCTriggerPrimitivesReader(const edm::ParameterSet& iConfig) : eventsAnalyzed(0), cscGeomToken_(esConsumes()) {
+GEMCSCTriggerPrimitivesReader::GEMCSCTriggerPrimitivesReader(const edm::ParameterSet& iConfig) : eventsAnalyzed(0) {
     lctProducerData_ = iConfig.getUntrackedParameter<std::string>("CSCLCTProducerData", "muonCSCDigis");
     lctProducerEmul_ = iConfig.getUntrackedParameter<std::string>("CSCLCTProducerEmul", "cscTriggerPrimitiveDigis");//simCscTriggerPrimitivesDigis for simulation
     debug = iConfig.getParameter<bool>("debug");
     if(debug) std::cout<<"lctProducerData: "<<lctProducerData_<<std::endl;
     std::cout<<"lctProducerEmul: "<<lctProducerEmul_<<std::endl;
     config = iConfig;
-    // cscGeomToken_ = iC.esConsumes<CSCGeometry, MuonGeometryRecord>();
+
     //consumes Data
     alcts_d_token_ = consumes<CSCALCTDigiCollection>(edm::InputTag(lctProducerData_, "MuonCSCALCTDigi"));
     clcts_d_token_ = consumes<CSCCLCTDigiCollection>(edm::InputTag(lctProducerData_, "MuonCSCCLCTDigi"));
     lcts_tmb_d_token_ = consumes<CSCCorrelatedLCTDigiCollection>(edm::InputTag(lctProducerData_, "MuonCSCCorrelatedLCTDigi"));
     lctdebugtoken_data = consumes<std::vector<LCTDebugobject>>(edm::InputTag(lctProducerEmul_, "LCTDebugvector"));
-    
+
 
     //consumes Emul
     alcts_e_token_ = consumes<CSCALCTDigiCollection>(edm::InputTag(lctProducerEmul_));
@@ -212,14 +213,16 @@ GEMCSCTriggerPrimitivesReader::GEMCSCTriggerPrimitivesReader(const edm::Paramete
     CLCT_tree = bookTTree_CLCT();
     LCT_tree = bookTTree_LCT();
 
+
+    cscGeomToken_ = esConsumes<CSCGeometry, MuonGeometryRecord>();
+
   }
 
 
 void
 GEMCSCTriggerPrimitivesReader::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup){
     ++eventsAnalyzed;
-    // cscGeometry_ = &iSetup.getData(geomToken_);
-    CSCGeometry_ = &iSetup.getData(cscGeomToken_);
+    cscGeometry_ = &iSetup.getData(cscGeomToken_);
     RUN_ = iEvent.id().run();
     Event_ = iEvent.id().event();
     luminosityblock = iEvent.id().luminosityBlock();
@@ -246,7 +249,7 @@ GEMCSCTriggerPrimitivesReader::analyze(const edm::Event& iEvent, const edm::Even
     iEvent.getByToken(clcts_e_token_, clcts_emul);
     iEvent.getByToken(lcts_tmb_e_token_, lcts_tmb_emul);
     iEvent.getByToken(lctdebugtoken_emul, lctdebugvectorhandle_emul);
-    
+
         // Save ALCTs
     if (alcts_data.isValid()) {
       bool is_data = true;
@@ -403,7 +406,7 @@ void GEMCSCTriggerPrimitivesReader::SaveCLCTs(const CSCCLCTDigiCollection* clcts
               t_endcap.push_back(endc);
               t_station.push_back(stat);
               t_ring.push_back(ring);
-              t_chamber.push_back(cham);  
+              t_chamber.push_back(cham);
               t_isValid.push_back((*digiIt).isValid());
               t_quality.push_back((*digiIt).getQuality());
               t_pattern.push_back((*digiIt).getPattern());
@@ -481,7 +484,7 @@ void GEMCSCTriggerPrimitivesReader::SaveLCTs(const CSCCorrelatedLCTDigiCollectio
               GlobalPoint test = getGlobalPosition(detid, *digiIt);
               std::cout<<"got position"<<std::endl;
               std::cout<<test.eta()<<std::endl;
-              // std::cout << "LCT " << (*digiIt) <<" data:emul "<< is_data <<":"<< is_emul << std::endl;//if (debug) 
+              // std::cout << "LCT " << (*digiIt) <<" data:emul "<< is_data <<":"<< is_emul << std::endl;//if (debug)
               lctV.push_back(*digiIt);
               //Fill TTree
               t_is_data.push_back(is_data);
@@ -515,7 +518,7 @@ void GEMCSCTriggerPrimitivesReader::SaveLCTs(const CSCCorrelatedLCTDigiCollectio
               isme1avector.push_back(isme1a);
               bool debugfound = false;
               for (unsigned debugnum=0; debugnum<lctdebugvector_->size(); debugnum++){
-                
+
                 LCTDebugobject debug = lctdebugvector_->at(debugnum);
                 std::vector<int> identifiers = debug.Getidentifiers();
                 // std::cout<<"lctdebug identifiers: "<<identifiers[0]<<" "<<identifiers[1]<<" "<<identifiers[2]<<" "<<identifiers[3]<<" "<<identifiers[4]<<std::endl;
@@ -564,15 +567,15 @@ void GEMCSCTriggerPrimitivesReader::SaveLCTs(const CSCCorrelatedLCTDigiCollectio
                     residualnoalignmentcorrectionvectorlayer2.push_back(-999);
                     clusterbxvectorlayer2.push_back(-999);
                   }
-                 
+
                   int clusterrolllayer1 = debug.GetClusterRoll1();
                   int clusterrolllayer2 = debug.GetClusterRoll2();
                   clusterrollvectorlayer1.push_back(clusterrolllayer1);
                   clusterrollvectorlayer2.push_back(clusterrolllayer2);
-                  
+
                   debugfound = true;
                 }
-                  
+
               }
               if (!debugfound){
                 bendinganglevectorlayer1.push_back(-999);
