@@ -54,6 +54,10 @@
 #include "Geometry/GEMGeometry/interface/GEMGeometry.h"
 #include "Geometry/CSCGeometry/interface/CSCGeometry.h"
 
+//////////////////////////////////////////////////////////lctdebug changes
+#include "DataFormats/LCTDebug/interface/LCTDebug.h"
+/////////////////////////////////////////////////////////////////
+
 // temporarily switch to a "one" module with a CSCTriggerPrimitivesBuilder data member
 class CSCTriggerPrimitivesProducer : public edm::stream::EDProducer<> {
 public:
@@ -175,6 +179,7 @@ CSCTriggerPrimitivesProducer::CSCTriggerPrimitivesProducer(const edm::ParameterS
   if (runILT_) {
     produces<GEMCoPadDigiCollection>();
   }
+  produces<std::vector<LCTDebugobject>>("LCTDebugvector");//lctdebug changes
 
   builder_ = std::make_unique<CSCTriggerPrimitivesBuilder>(conf);
 }
@@ -270,6 +275,8 @@ void CSCTriggerPrimitivesProducer::produce(edm::Event& ev, const edm::EventSetup
   std::unique_ptr<CSCShowerDigiCollection> oc_shower_anode(new CSCShowerDigiCollection);
   std::unique_ptr<CSCShowerDigiCollection> oc_shower_cathode(new CSCShowerDigiCollection);
   std::unique_ptr<GEMCoPadDigiCollection> oc_gemcopad(new GEMCoPadDigiCollection);
+  /////////////////////////////////////////////lctdebug changes
+  std::unique_ptr<std::vector<LCTDebugobject>> lctdebugvector(new std::vector<LCTDebugobject>);
 
   if (!wireDigis.isValid()) {
     edm::LogWarning("CSCTriggerPrimitivesProducer|NoInputCollection")
@@ -299,7 +306,6 @@ void CSCTriggerPrimitivesProducer::produce(edm::Event& ev, const edm::EventSetup
       gemPadClusters = gemPadDigiClusters.product();
     }
   }
-
   // Fill output collections if valid input collections are available.
   if (wireDigis.isValid() && compDigis.isValid()) {
     const CSCBadChambers* temp = nullptr;
@@ -324,10 +330,13 @@ void CSCTriggerPrimitivesProducer::produce(edm::Event& ev, const edm::EventSetup
                    *oc_shower_anode,
                    *oc_shower_cathode,
                    *oc_shower,
-                   *oc_gemcopad);
+                   *oc_gemcopad,
+                   *lctdebugvector);
   }
 
   // Put collections in event.
+  //////////////////////////////////////////////////////lctdebug changes
+  ev.put(std::move(lctdebugvector), "LCTDebugvector");
   ev.put(std::move(oc_alct));
   ev.put(std::move(oc_clct));
   if (keepALCTPreTriggers_) {

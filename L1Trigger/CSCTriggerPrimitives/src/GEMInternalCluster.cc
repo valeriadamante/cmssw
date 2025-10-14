@@ -28,6 +28,7 @@ GEMInternalCluster::GEMInternalCluster(const GEMDetId& id1,
             delayGEMinOTMB;
     layer1_pad_ = cluster1.pads()[0];
     layer1_size_ = cluster1.pads().size();
+    bx_1 = bx_;
   }
   if (cluster2.isValid()) {
     isValid_ = true;
@@ -39,6 +40,7 @@ GEMInternalCluster::GEMInternalCluster(const GEMDetId& id1,
             delayGEMinOTMB;
     layer2_pad_ = cluster2.pads()[0];
     layer2_size_ = cluster2.pads().size();
+    bx_2 = bx_;
   }
 
   if (cluster1.isValid() and cluster2.isValid()) {

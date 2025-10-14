@@ -18,6 +18,10 @@
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCGEMMatcher.h"
 #include "Geometry/GEMGeometry/interface/GEMGeometry.h"
 
+///////////////////////////////////////////////////////////////////lctdebug changes
+#include "DataFormats/LCTDebug/interface/LCTDebug.h"
+/////////////////////////////////////////////////////////////////////////
+
 class CSCGEMMotherboard : public CSCMotherboard {
 public:
   typedef std::vector<GEMInternalCluster> GEMInternalClusters;
@@ -52,7 +56,8 @@ public:
   void run(const CSCWireDigiCollection* wiredc,
            const CSCComparatorDigiCollection* compdc,
            const GEMPadDigiClusterCollection* gemPads,
-           RunContext const&);
+           RunContext const&,
+           std::vector<LCTDebugobject>& allLCTdebugs);
 
   /* GEM cluster processor */
   std::shared_ptr<GEMClusterProcessor> clusterProc() const { return clusterProc_; }
@@ -70,46 +75,51 @@ private:
     7) ALCT-CLCT with unused combination
   */
   void matchALCTCLCTGEM(const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
-                        const CSCL1TPLookupTableME21ILT* lookupTableME21ILT);
+                        const CSCL1TPLookupTableME21ILT* lookupTableME21ILT,
+                        std::vector<LCTDebugobject>& allLCTdebugs);//lctdebug changes
 
-  // correlate ALCT, CLCT with matched pads or copads
+  // correlate ALCT, CLCT with matched pads or copads //lctdebug changes, adding debug object
   void correlateLCTsGEM(const CSCALCTDigi& ALCT,
                         const CSCCLCTDigi& CLCT,
                         const GEMInternalClusters& clusters,
                         const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                         const CSCL1TPLookupTableME21ILT* lookupTableME21ILT,
-                        CSCCorrelatedLCTDigi& lct) const;
+                        CSCCorrelatedLCTDigi& lct,
+                        LCTDebugobject& lctdebug) const;
 
   // correlate ALCT and CLCT, no GEM
   void correlateLCTsGEM(const CSCALCTDigi& ALCT, const CSCCLCTDigi& CLCT, CSCCorrelatedLCTDigi& lct) const;
 
-  // correlate CLCT with matched pads or copads
+  // correlate CLCT with matched pads or copads //lctdebug changes, adding debug object
   void correlateLCTsGEM(const CSCCLCTDigi& CLCT,
                         const GEMInternalClusters& clusters,
                         const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                         const CSCL1TPLookupTableME21ILT* lookupTableME21ILT,
-                        CSCCorrelatedLCTDigi& lct) const;
+                        CSCCorrelatedLCTDigi& lct,
+                        LCTDebugobject& lctdebug) const;
 
   // correlate ALCT with matched pads or copads
   void correlateLCTsGEM(const CSCALCTDigi& ALCT, const GEMInternalClusters& clusters, CSCCorrelatedLCTDigi& lct) const;
 
-  // Construct LCT from CSC and GEM information. ALCT+CLCT+GEM
+  // Construct LCT from CSC and GEM information. ALCT+CLCT+GEM //lctdebug changes, adding debug object
   void constructLCTsGEM(const CSCALCTDigi& alct,
                         const CSCCLCTDigi& clct,
                         const GEMInternalCluster& gem,
                         const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                         const CSCL1TPLookupTableME21ILT* lookupTableME21ILT,
-                        CSCCorrelatedLCTDigi& lct) const;
+                        CSCCorrelatedLCTDigi& lct,
+                        LCTDebugobject& lctdebug) const;
 
   // Construct LCT from CSC and no GEM information. ALCT+CLCT
   void constructLCTsGEM(const CSCALCTDigi& alct, const CSCCLCTDigi& clct, CSCCorrelatedLCTDigi& lct) const;
 
-  // Construct LCT from CSC and GEM information. CLCT+2GEM
+  // Construct LCT from CSC and GEM information. CLCT+2GEM //lctdebug changes, adding debug object
   void constructLCTsGEM(const CSCCLCTDigi& clct,
                         const GEMInternalCluster& gem,
                         const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                         const CSCL1TPLookupTableME21ILT* lookupTableME21ILT,
-                        CSCCorrelatedLCTDigi& lct) const;
+                        CSCCorrelatedLCTDigi& lct,
+                        LCTDebugobject& lctdebug) const;
 
   // Construct LCT from CSC and GEM information. ALCT+2GEM
   void constructLCTsGEM(const CSCALCTDigi& alct, const GEMInternalCluster& gem, CSCCorrelatedLCTDigi& lct) const;

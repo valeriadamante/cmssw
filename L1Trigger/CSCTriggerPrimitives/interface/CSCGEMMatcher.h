@@ -17,6 +17,8 @@
 
 #include <string>
 #include <vector>
+#include <fstream>
+#include <iostream>
 
 class CSCALCTDigi;
 class CSCCLCTDigi;
@@ -32,8 +34,8 @@ public:
                 const edm::ParameterSet& tmbParams,
                 const edm::ParameterSet& luts);
 
-  // calculate the bending angle
-  int calculateGEMCSCBending(const CSCCLCTDigi& clct,
+  // calculate the bending angle //lctdbeug changes, used to be an int
+  std::vector<int> calculateGEMCSCBending(const CSCCLCTDigi& clct,
                              const GEMInternalCluster& cluster,
                              const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                              const CSCL1TPLookupTableME21ILT* lookupTableME21ILT) const;
@@ -53,8 +55,8 @@ public:
                            const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                            const CSCL1TPLookupTableME21ILT* lookupTableME21ILT) const;
 
-  // matching candidate distance in 1/8 strip, always the total without extrapolation correction, if ForceTotal is true
-  int matchedClusterDistES(const CSCCLCTDigi& clct,
+  // matching candidate distance in 1/8 strip, always the total without extrapolation correction, if ForceTotal is true//lctdebug
+  std::vector<int> matchedClusterDistES(const CSCCLCTDigi& clct,
                            const GEMInternalCluster& cluster,
                            const bool isLayer2,
                            const bool ForceTotal,
@@ -90,6 +92,8 @@ public:
                       GEMInternalCluster& best) const;
 
 private:
+  inline static std::ofstream distES_file = std::ofstream("distES.csv");
+
   //mitigate slope by consistency of slope indicator, if necessary
   uint16_t mitigatedSlopeByConsistency(const CSCCLCTDigi& clct,
                                        const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
