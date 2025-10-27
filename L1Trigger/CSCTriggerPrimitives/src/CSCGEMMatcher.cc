@@ -246,10 +246,29 @@ int CSCGEMMatcher::matchedClusterDistES(const CSCCLCTDigi& clct,
                                         const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                                         const CSCL1TPLookupTableME21ILT* lookupTableME21ILT) const {
   const bool isME1a(station_ == 1 and clct.getKeyStrip() > CSCConstants::MAX_HALF_STRIP_ME1B);
-
   int cl_es = isME1a ? cl.getKeyStripME1a(8, isLayer2) : cl.getKeyStrip(8, isLayer2);
 
-  int eighthStripDiff = cl_es - clct.getKeyStrip(8);
+  int alignCorrection = 0;
+  if (station_ == 1) {  // GE1/1
+    if (endcap_ == 1)  // Positive endcap
+      alignCorrection = isLayer2 ? lookupTableME11ILT->GEM_align_corr_es_ME11_positive_endcap_L2(chamber_, cl.roll2())
+                                 : lookupTableME11ILT->GEM_align_corr_es_ME11_positive_endcap_L1(chamber_, cl.roll1());
+    else // Negative endcap
+      alignCorrection = isLayer2 ? lookupTableME11ILT->GEM_align_corr_es_ME11_negative_endcap_L2(chamber_, cl.roll2())
+                                 : lookupTableME11ILT->GEM_align_corr_es_ME11_negative_endcap_L1(chamber_, cl.roll1());
+  } else { // GE2/1
+    if (endcap_ == 1)  // Positive endcap
+      alignCorrection = isLayer2 ? lookupTableME21ILT->GEM_align_corr_es_ME21_positive_endcap_L2(chamber_, cl.roll2())
+                                 : lookupTableME21ILT->GEM_align_corr_es_ME21_positive_endcap_L1(chamber_, cl.roll1());
+    else // Negative endcap
+      alignCorrection = isLayer2 ? lookupTableME21ILT->GEM_align_corr_es_ME21_negative_endcap_L2(chamber_, cl.roll2())
+                                 : lookupTableME21ILT->GEM_align_corr_es_ME21_negative_endcap_L1(chamber_, cl.roll1());
+  }
+  bool isMC = true; // This should be passed from config, but I'm not sure how to yet
+  if (isMC){
+    alignCorrection = 0;  // In MC, we do not apply alignment corrections
+  }
+  int eighthStripDiff = cl_es + alignCorrection - clct.getKeyStrip(8);
 
   if (matchCLCTpropagation_ and !ForceTotal) {  //modification of DeltaStrip by CLCT slope
     int SlopeShift = 0;
@@ -495,6 +514,8 @@ int CSCGEMMatcher::calculateGEMCSCBending(const CSCCLCTDigi& clct,
       }
     }
   }
+
+  slopeShift = eighthStripDiff; // Send full resolution BA for now
 
   //account for the sign of the difference
   slopeShift *= pow(-1, std::signbit(SignedEighthStripDiff));

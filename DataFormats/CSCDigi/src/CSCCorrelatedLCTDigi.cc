@@ -28,7 +28,8 @@ CSCCorrelatedLCTDigi::CSCCorrelatedLCTDigi(const uint16_t itrknmb,
                                            const bool run3_eighth_strip_bit,
                                            const uint16_t run3_pattern,
                                            const uint16_t run3_slope,
-                                           const int type)
+                                           const int type,
+                                           const bool GEMLayer)
     : trknmb(itrknmb),
       valid(ivalid),
       quality(iquality),
@@ -47,6 +48,7 @@ CSCCorrelatedLCTDigi::CSCCorrelatedLCTDigi(const uint16_t itrknmb,
       run3_pattern_(run3_pattern),
       run3_slope_(run3_slope),
       type_(type),
+      GEMLayer_(GEMLayer),
       version_(version) {}
 
 /// Default
@@ -81,6 +83,7 @@ void CSCCorrelatedLCTDigi::clear() {
   clct_.clear();
   gem1_ = GEMPadDigi();
   gem2_ = GEMPadDigi();
+  GEMLayer_ = false;
 }
 
 uint16_t CSCCorrelatedLCTDigi::getStrip(const uint16_t n) const {

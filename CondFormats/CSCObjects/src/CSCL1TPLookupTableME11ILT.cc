@@ -11,6 +11,11 @@ CSCL1TPLookupTableME11ILT::CSCL1TPLookupTableME11ILT()
       GEM_roll_CSC_min_wg_ME11_odd_(0),
       GEM_roll_CSC_max_wg_ME11_odd_(0),
 
+      GEM_align_corr_es_ME11_positive_endcap_L1_(0),
+      GEM_align_corr_es_ME11_positive_endcap_L2_(0),
+      GEM_align_corr_es_ME11_negative_endcap_L1_(0),
+      GEM_align_corr_es_ME11_negative_endcap_L2_(0),
+
       CSC_slope_cosi_2to1_L1_ME11a_even_(0),
       CSC_slope_cosi_2to1_L1_ME11a_odd_(0),
       CSC_slope_cosi_3to1_L1_ME11a_even_(0),
@@ -71,6 +76,23 @@ void CSCL1TPLookupTableME11ILT::set_GEM_roll_CSC_min_wg_ME11_odd(t_lut lut) {
 
 void CSCL1TPLookupTableME11ILT::set_GEM_roll_CSC_max_wg_ME11_odd(t_lut lut) {
   GEM_roll_CSC_max_wg_ME11_odd_ = std::move(lut);
+}
+
+// GEM-CSC trigger: GEM alignment correction to CSC
+void CSCL1TPLookupTableME11ILT::set_GEM_align_corr_es_ME11_positive_endcap_L1(t_lut_signed lut) {
+  GEM_align_corr_es_ME11_positive_endcap_L1_ = std::move(lut);
+}
+
+void CSCL1TPLookupTableME11ILT::set_GEM_align_corr_es_ME11_positive_endcap_L2(t_lut_signed lut) {
+  GEM_align_corr_es_ME11_positive_endcap_L2_ = std::move(lut);
+}
+
+void CSCL1TPLookupTableME11ILT::set_GEM_align_corr_es_ME11_negative_endcap_L1(t_lut_signed lut) {
+  GEM_align_corr_es_ME11_negative_endcap_L1_ = std::move(lut);
+}
+
+void CSCL1TPLookupTableME11ILT::set_GEM_align_corr_es_ME11_negative_endcap_L2(t_lut_signed lut) {
+  GEM_align_corr_es_ME11_negative_endcap_L2_ = std::move(lut);
 }
 
 // GEM-CSC trigger: slope correction
@@ -217,6 +239,23 @@ unsigned CSCL1TPLookupTableME11ILT::GEM_roll_CSC_min_wg_ME11_odd(unsigned roll) 
 
 unsigned CSCL1TPLookupTableME11ILT::GEM_roll_CSC_max_wg_ME11_odd(unsigned roll) const {
   return GEM_roll_CSC_max_wg_ME11_odd_[roll];
+}
+
+// GEM-CSC trigger: GEM alignment correction to CSC
+int CSCL1TPLookupTableME11ILT::GEM_align_corr_es_ME11_positive_endcap_L1(unsigned chamber, unsigned roll) const {
+  return GEM_align_corr_es_ME11_positive_endcap_L1_[8*(chamber-1)+(roll-1)];
+}
+
+int CSCL1TPLookupTableME11ILT::GEM_align_corr_es_ME11_positive_endcap_L2(unsigned chamber, unsigned roll) const {
+  return GEM_align_corr_es_ME11_positive_endcap_L2_[8*(chamber-1)+(roll-1)];
+}
+
+int CSCL1TPLookupTableME11ILT::GEM_align_corr_es_ME11_negative_endcap_L1(unsigned chamber, unsigned roll) const {
+  return GEM_align_corr_es_ME11_negative_endcap_L1_[8*(chamber-1)+(roll-1)];
+}
+
+int CSCL1TPLookupTableME11ILT::GEM_align_corr_es_ME11_negative_endcap_L2(unsigned chamber, unsigned roll) const {
+  return GEM_align_corr_es_ME11_negative_endcap_L2_[8*(chamber-1)+(roll-1)];
 }
 
 // GEM-CSC trigger: slope correction

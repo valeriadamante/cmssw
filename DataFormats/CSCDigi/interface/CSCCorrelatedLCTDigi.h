@@ -52,7 +52,8 @@ public:
                        const bool run3_eighth_strip_bit = false,
                        const uint16_t run3_pattern = 0,
                        const uint16_t run3_slope = 0,
-                       const int type = ALCTCLCT);
+                       const int type = ALCTCLCT,
+                       const bool GEMLayer = false);
 
   /// default (calls clear())
   CSCCorrelatedLCTDigi();
@@ -212,6 +213,10 @@ public:
 
   void setType(int type) { type_ = type; }
 
+  bool getGEMLayer() const { return GEMLayer_; }
+
+  void setGEMLayer(bool isLayer2) { GEMLayer_ = isLayer2; }
+
   void setALCT(const CSCALCTDigi& alct) { alct_ = alct; }
   void setCLCT(const CSCCLCTDigi& clct) { clct_ = clct; }
   void setGEM1(const GEMPadDigi& gem) { gem1_ = gem; }
@@ -278,6 +283,8 @@ private:
   CSCCLCTDigi clct_;
   GEMPadDigi gem1_;
   GEMPadDigi gem2_;
+
+  bool GEMLayer_;
 
   Version version_;
 };

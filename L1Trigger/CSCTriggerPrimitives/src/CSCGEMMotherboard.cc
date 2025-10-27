@@ -106,7 +106,7 @@ void CSCGEMMotherboard::matchALCTCLCTGEM(const CSCL1TPLookupTableME11ILT* lookup
   // this has been superseded by 16-eta partition geometries
   if (isME21_ and !hasGE21Geometry16Partitions_)
     return;
-
+  std::cout << "Starting the matching of ALCTs, CLCTs and GEM clusters" << std::endl;
   for (int bx_alct = 0; bx_alct < CSCConstants::MAX_ALCT_TBINS; bx_alct++) {
     // Declaration of all LCTs for this BX:
 
@@ -124,6 +124,7 @@ void CSCGEMMotherboard::matchALCTCLCTGEM(const CSCL1TPLookupTableME11ILT* lookup
     CSCALCTDigi bestALCT = alctProc->getBestALCT(bx_alct), secondALCT = alctProc->getSecondALCT(bx_alct);
     CSCCLCTDigi bestCLCT, secondCLCT;
     GEMInternalClusters clustersGEM;
+    GEMInternalClusters clustersGEM_test;
 
     // Find best and second CLCTs by preferred CLCT BX, taking into account that there is an offset in the simulation
 
@@ -169,11 +170,14 @@ void CSCGEMMotherboard::matchALCTCLCTGEM(const CSCL1TPLookupTableME11ILT* lookup
                                     << bestALCT << " secondALCT " << secondALCT << " bestCLCT " << bestCLCT
                                     << " secondCLCT " << secondCLCT;
     // ALCT + CLCT + GEM
-
-    for (unsigned gmbx = 0; gmbx < alct_gem_bx_window_size_; gmbx++) {
-      unsigned bx_gem = bx_alct + preferred_bx_match(gmbx);
+    // for (unsigned gmbx = 0; gmbx < alct_gem_bx_window_size_; gmbx++) {
+    for (int gmbx = -20; gmbx < 10; gmbx++) {
+      int bx_gem = gmbx;
+      // unsigned bx_gem = bx_alct + preferred_bx_match(gmbx);
       clustersGEM = clusterProc_->getClusters(bx_gem, GEMClusterProcessor::AllClusters);
       if (!clustersGEM.empty()) {
+        std::cout << "Found GEM clusters for bx_gem " << bx_gem << std::endl;
+        std::cout << "BX ALCT " << bx_alct << std::endl;
         correlateLCTsGEM(bestALCT, bestCLCT, clustersGEM, lookupTableME11ILT, lookupTableME21ILT, LCTbestAbestCgem);
         correlateLCTsGEM(bestALCT, secondCLCT, clustersGEM, lookupTableME11ILT, lookupTableME21ILT, LCTbestAsecondCgem);
         correlateLCTsGEM(secondALCT, bestCLCT, clustersGEM, lookupTableME11ILT, lookupTableME21ILT, LCTsecondAbestCgem);
@@ -526,6 +530,10 @@ void CSCGEMMotherboard::constructLCTsGEM(const CSCALCTDigi& alct,
     if (assign_gem_csc_bending_ &&
         gem.isValid()) {  //calculate new slope from strip difference between CLCT and associated GEM
       int slope = cscGEMMatcher_->calculateGEMCSCBending(clct, gem, lookupTableME11ILT, lookupTableME21ILT);
+      bool isLayer2 = false;
+      if (!gem.isMatchingLayer1() and gem.isMatchingLayer2())
+        isLayer2 = true;
+      thisLCT.setGEMLayer(isLayer2);
       thisLCT.setSlope(abs(slope));
       thisLCT.setBend(std::signbit(slope));
       thisLCT.setPattern(Run2PatternConverter(slope));
@@ -593,6 +601,10 @@ void CSCGEMMotherboard::constructLCTsGEM(const CSCCLCTDigi& clct,
     if (assign_gem_csc_bending_ &&
         gem.isValid()) {  //calculate new slope from strip difference between CLCT and associated GEM
       int slope = cscGEMMatcher_->calculateGEMCSCBending(clct, gem, lookupTableME11ILT, lookupTableME21ILT);
+      bool isLayer2 = false;
+      if (!gem.isMatchingLayer1() and gem.isMatchingLayer2())
+        isLayer2 = true;
+      thisLCT.setGEMLayer(isLayer2);
       thisLCT.setSlope(abs(slope));
       thisLCT.setBend(pow(-1, std::signbit(slope)));
       thisLCT.setPattern(Run2PatternConverter(slope));

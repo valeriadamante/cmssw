@@ -11,6 +11,7 @@ public:
   ~CSCL1TPLookupTableME11ILT() {}
 
   typedef std::vector<unsigned> t_lut;
+  typedef std::vector<int> t_lut_signed;
 
   // setters
   void set_GEM_pad_CSC_es_ME11b_even(t_lut lut);
@@ -22,6 +23,11 @@ public:
   void set_GEM_roll_CSC_max_wg_ME11_even(t_lut lut);
   void set_GEM_roll_CSC_min_wg_ME11_odd(t_lut lut);
   void set_GEM_roll_CSC_max_wg_ME11_odd(t_lut lut);
+
+  void set_GEM_align_corr_es_ME11_positive_endcap_L1(t_lut_signed lut);
+  void set_GEM_align_corr_es_ME11_positive_endcap_L2(t_lut_signed lut);
+  void set_GEM_align_corr_es_ME11_negative_endcap_L1(t_lut_signed lut);
+  void set_GEM_align_corr_es_ME11_negative_endcap_L2(t_lut_signed lut);
 
   // GEM-CSC trigger: slope correction
   void set_CSC_slope_cosi_2to1_L1_ME11a_even(t_lut lut);
@@ -68,6 +74,11 @@ public:
   unsigned GEM_roll_CSC_min_wg_ME11_odd(unsigned roll) const;
   unsigned GEM_roll_CSC_max_wg_ME11_odd(unsigned roll) const;
 
+  int GEM_align_corr_es_ME11_positive_endcap_L1(unsigned chamber, unsigned roll) const;
+  int GEM_align_corr_es_ME11_positive_endcap_L2(unsigned chamber, unsigned roll) const;
+  int GEM_align_corr_es_ME11_negative_endcap_L1(unsigned chamber, unsigned roll) const;
+  int GEM_align_corr_es_ME11_negative_endcap_L2(unsigned chamber, unsigned roll) const;
+
   // GEM-CSC trigger: slope correction
   unsigned CSC_slope_cosi_2to1_L1_ME11a_even(unsigned channel) const;
   unsigned CSC_slope_cosi_2to1_L1_ME11a_odd(unsigned channel) const;
@@ -113,6 +124,11 @@ private:
   t_lut GEM_roll_CSC_max_wg_ME11_even_;
   t_lut GEM_roll_CSC_min_wg_ME11_odd_;
   t_lut GEM_roll_CSC_max_wg_ME11_odd_;
+
+  t_lut_signed GEM_align_corr_es_ME11_positive_endcap_L1_;
+  t_lut_signed GEM_align_corr_es_ME11_positive_endcap_L2_;
+  t_lut_signed GEM_align_corr_es_ME11_negative_endcap_L1_;
+  t_lut_signed GEM_align_corr_es_ME11_negative_endcap_L2_;
 
   t_lut CSC_slope_cosi_2to1_L1_ME11a_even_;
   t_lut CSC_slope_cosi_2to1_L1_ME11a_odd_;

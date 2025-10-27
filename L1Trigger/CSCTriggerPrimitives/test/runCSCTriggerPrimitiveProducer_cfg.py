@@ -124,31 +124,31 @@ if useB904Data:
       process.muonCSCDigis.DisableMappingCheck = True
       process.muonCSCDigis.B904Setup = True
       process.muonCSCDigis.InputObjects = "rawDataCollectorCSC"
-      
+
       if options.useB904ME11:
-      
+
         if options.useB904ME11PositiveEndcap + options.useB904ME11NegativeEndcap == 2:
             print("Choose at most one between useB904ME11PositiveEndcap and useB904ME11NegativeEndcap!")
         elif options.useB904ME11NegativeEndcap: # Set manually the VME crate number for ME-1/1/02
             process.muonCSCDigis.B904vmecrate = 31
         else: # Set manually the VME crate number for ME+1/1/02
             process.muonCSCDigis.B904vmecrate = 1
-            
+
         if options.useB904GE11Short + options.useB904GE11Long == 2:
             print("Choose at most one between useB904GE11Short and useB904GE11Long!")
         elif options.useB904GE11Short: # Set manually the DMB slot for ME+-1/1/01
             process.muonCSCDigis.B904dmb = 2
         else: # Set manually the DMB slot for ME+-1/1/02
             process.muonCSCDigis.B904dmb = 3
-      
+
       elif options.useB904ME21: # Set manually the VME crate number and default DMB for ME+2/1/01
           process.muonCSCDigis.B904vmecrate = 18
           process.muonCSCDigis.B904dmb = 3
-      
+
       elif options.useB904ME234s2: # Set manually the VME crate number and default DMB for ME+4/2/01
           process.muonCSCDigis.B904vmecrate = 30
           process.muonCSCDigis.B904dmb = 9
-          
+
       else: # Set manually the VME crate number and default DMB for ME+1/1/02
           process.muonCSCDigis.B904vmecrate = 1
           process.muonCSCDigis.B904dmb = 3
@@ -232,6 +232,9 @@ if options.dropNonMuonCollections:
       outputCom.append('drop *_hltGtStage2ObjectMap_*_*')
       outputCom.append('drop *_simGtStage2Digis_*_*')
       outputCom.append('drop *_hltTriggerSummary*_*_*')
+      outputCom.append('drop *_*_*_HLT')
+      outputCom.append('drop *_*_*_SIM')
+
 
 ## DQM output
 process.DQMoutput = cms.OutputModule("DQMRootOutputModule",
