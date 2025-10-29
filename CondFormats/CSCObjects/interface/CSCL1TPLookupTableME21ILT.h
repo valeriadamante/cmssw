@@ -12,7 +12,6 @@ public:
 
   typedef std::vector<unsigned> t_lut;
   typedef std::vector<int> t_lut_signed;
-  typedef std::vector<int> t_lut_signed;
 
   // setters
   void set_GEM_pad_CSC_es_ME21_even(t_lut lut);
@@ -92,22 +91,12 @@ public:
 private:
   t_lut GEM_pad_CSC_es_ME21_even_;
   t_lut GEM_pad_CSC_es_ME21_odd_;
-  t_lut GEM_pad_CSC_es_ME21_even_;
-  t_lut GEM_pad_CSC_es_ME21_odd_;
 
   t_lut GEM_roll_L1_CSC_min_wg_ME21_even_;
   t_lut GEM_roll_L1_CSC_max_wg_ME21_even_;
   t_lut GEM_roll_L1_CSC_min_wg_ME21_odd_;
   t_lut GEM_roll_L1_CSC_max_wg_ME21_odd_;
-  t_lut GEM_roll_L1_CSC_min_wg_ME21_even_;
-  t_lut GEM_roll_L1_CSC_max_wg_ME21_even_;
-  t_lut GEM_roll_L1_CSC_min_wg_ME21_odd_;
-  t_lut GEM_roll_L1_CSC_max_wg_ME21_odd_;
 
-  t_lut GEM_roll_L2_CSC_min_wg_ME21_even_;
-  t_lut GEM_roll_L2_CSC_max_wg_ME21_even_;
-  t_lut GEM_roll_L2_CSC_min_wg_ME21_odd_;
-  t_lut GEM_roll_L2_CSC_max_wg_ME21_odd_;
   t_lut GEM_roll_L2_CSC_min_wg_ME21_even_;
   t_lut GEM_roll_L2_CSC_max_wg_ME21_even_;
   t_lut GEM_roll_L2_CSC_min_wg_ME21_odd_;
@@ -125,13 +114,7 @@ private:
 
   t_lut CSC_slope_cosi_corr_L1_ME21_even_;
   t_lut CSC_slope_cosi_corr_L1_ME21_odd_;
-  t_lut CSC_slope_cosi_corr_L1_ME21_even_;
-  t_lut CSC_slope_cosi_corr_L1_ME21_odd_;
 
-  t_lut CSC_slope_corr_L1_ME21_even_;
-  t_lut CSC_slope_corr_L1_ME21_odd_;
-  t_lut CSC_slope_corr_L2_ME21_even_;
-  t_lut CSC_slope_corr_L2_ME21_odd_;
   t_lut CSC_slope_corr_L1_ME21_even_;
   t_lut CSC_slope_corr_L1_ME21_odd_;
   t_lut CSC_slope_corr_L2_ME21_even_;

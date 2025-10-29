@@ -37,7 +37,6 @@ protected:
 private:
   std::vector<unsigned> load(std::string fileName) const;
   std::vector<int> load_signed(std::string fileName) const;
-  std::vector<int> load_signed(std::string fileName) const;
   const edm::ParameterSet pset_;
 };
 

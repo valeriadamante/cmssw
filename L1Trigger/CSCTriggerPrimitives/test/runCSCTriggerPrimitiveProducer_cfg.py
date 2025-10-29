@@ -326,7 +326,7 @@ if options.saveEdmOutput:
 
 process.schedule.extend([process.p6])
 
-process.GEMCSCTriggerPrimitivesReader = cms.EDAnalyzer('GEMCSCTriggerPrimitivesReader', 
+process.GEMCSCTriggerPrimitivesReader = cms.EDAnalyzer('GEMCSCTriggerPrimitivesReader',
       CSCLCTProducerData = cms.untracked.string("muonCSCDigis"),
       CSCLCTProducerEmul = cms.untracked.string("cscTriggerPrimitiveDigis"),#simCscTriggerPrimitiveDigis for simulation
       debug = cms.bool(False),
