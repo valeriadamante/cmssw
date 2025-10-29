@@ -95,7 +95,8 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
                                         CSCShowerDigiCollection& oc_shower_anode,
                                         CSCShowerDigiCollection& oc_shower_cathode,
                                         CSCShowerDigiCollection& oc_shower,
-                                        GEMCoPadDigiCollection& oc_gemcopad) {
+                                        GEMCoPadDigiCollection& oc_gemcopad,
+                                        std::vector<LCTDebugobject>& lctdebugobjects) {//lctdebug changes
   // CSC geometry.
   CSCMotherboard::RunContext mbcontext{
       context.cscgeom_, context.cclut_, context.me11ilt_, context.me21ilt_, context.parameters_};
@@ -106,6 +107,8 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
       for (int sect = min_sector; sect <= max_sector; sect++) {
         for (int subs = min_subsector; subs <= numsubs; subs++) {
           for (int cham = min_chamber; cham <= max_chamber; cham++) {
+            std::vector<LCTDebugobject> allLCTdebugs;
+            
             // extract the ring number
             int ring = CSCTriggerNumbering::ringFromTriggerLabels(stat, cham);
 
@@ -151,7 +154,7 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
                                               context.me21ilt_,
                                               context.parameters_};
               CSCGEMMotherboard* tmbGEM = static_cast<CSCGEMMotherboard*>(tmb);
-              tmbGEM->run(wiredc, compdc, gemClusters, c);
+              tmbGEM->run(wiredc, compdc, gemClusters, c, allLCTdebugs);//lctdebug changes
 
               // 0th layer means whole chamber.
               GEMDetId gemId(detid.zendcap(), 1, stat, 0, chid, 0);
@@ -170,6 +173,28 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
             const std::vector<CSCALCTDigi>& alctV = tmb->alctProc->readoutALCTs();
             const std::vector<CSCCLCTDigi>& clctV = tmb->clctProc->readoutCLCTs();
             const std::vector<CSCCorrelatedLCTDigi>& lctV = tmb->readoutLCTs();
+            
+            //lctdebug changes
+            int KeyWG, bx, Bend, KeyStrip, slope;
+            for (unsigned l=0;l<lctV.size();l++){
+              CSCCorrelatedLCTDigi debugfinder = lctV[l];
+              KeyWG = debugfinder.getKeyWG();
+              bx = debugfinder.getBX();
+              Bend = debugfinder.getBend();
+              KeyStrip = debugfinder.getStrip();
+              slope = debugfinder.getSlope();
+              // std::cout<<"lct identifiers: "<<KeyWG<<" "<<bx<<" "<<Bend<<" "<<KeyStrip<<" "<<slope<<std::endl;
+              for (unsigned d=0;d<allLCTdebugs.size();d++){
+                LCTDebugobject debug = allLCTdebugs[d];
+                std::vector<int> identifiers = debug.Getidentifiers();
+                // std::cout<<"lctdebug identifiers: "<<identifiers[0]<<" "<<identifiers[1]<<" "<<identifiers[2]<<" "<<identifiers[3]<<" "<<identifiers[4]<<std::endl;
+                if ((KeyWG==identifiers[0]) && (bx==identifiers[1]) && (Bend==identifiers[2]) && (KeyStrip==identifiers[3]) && (slope==identifiers[4])){
+                  lctdebugobjects.push_back(debug);
+                  // std::vector<int> identifiers = debug.Getidentifiers();
+                  // std::cout<<"lctdebug identifiers: "<<identifiers[0]<<" "<<identifiers[1]<<" "<<identifiers[2]<<" "<<identifiers[3]<<" "<<identifiers[4]<<std::endl;
+                }
+              }
+            }
 
             // pre-triggers
             const std::vector<int>& preTriggerBXs = tmb->clctProc->preTriggerBXs();

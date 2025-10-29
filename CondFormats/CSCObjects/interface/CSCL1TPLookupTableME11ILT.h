@@ -12,6 +12,7 @@ public:
 
   typedef std::vector<unsigned> t_lut;
   typedef std::vector<int> t_lut_signed;
+  typedef std::vector<int> t_lut_signed;
 
   // setters
   void set_GEM_pad_CSC_es_ME11b_even(t_lut lut);

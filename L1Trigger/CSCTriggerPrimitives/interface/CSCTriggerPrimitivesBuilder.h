@@ -35,6 +35,9 @@
 #include "DataFormats/GEMDigi/interface/GEMCoPadDigiCollection.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
+//////////////////////////////////////////////////////////lctdebug changes
+#include "DataFormats/LCTDebug/interface/LCTDebug.h"
+/////////////////////////////////////////////////////////////////
 
 class CSCDBL1TPParameters;
 class CSCMotherboard;
@@ -84,7 +87,8 @@ public:
              CSCShowerDigiCollection& oc_shower_anode,
              CSCShowerDigiCollection& oc_shower_cathode,
              CSCShowerDigiCollection& oc_shower,
-             GEMCoPadDigiCollection& oc_gemcopad);
+             GEMCoPadDigiCollection& oc_gemcopad,
+             std::vector<LCTDebugobject>& lctdebugvector);//lctdebug changes
 
   /** Max values of trigger labels for all CSCs; used to construct TMB
    *  processors. */

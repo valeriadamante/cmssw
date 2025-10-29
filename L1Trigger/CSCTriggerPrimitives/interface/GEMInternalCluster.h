@@ -54,6 +54,8 @@ public:
   GEMCoPadDigi copad() const;
 
   int bx() const { return bx_; }
+  int bx1() const { return bx_1; }
+  int bx2() const { return bx_2; }
   int roll1() const { return id1_.roll(); }
   int roll2() const { return id2_.roll(); }
   int layer1_pad() const { return layer1_pad_; }
@@ -137,6 +139,8 @@ private:
 
   // bunch crossing
   int bx_;
+  int bx_1;
+  int bx_2;
 
   // starting pads and sizes of the clusters in each layer
   // depending on the presence of a coincidence, layer 1, layer2, or both

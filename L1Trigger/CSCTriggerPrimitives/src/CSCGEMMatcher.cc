@@ -69,13 +69,14 @@ void CSCGEMMatcher::bestClusterLoc(const CSCALCTDigi& alct,
                                    const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                                    const CSCL1TPLookupTableME21ILT* lookupTableME21ILT,
                                    GEMInternalCluster& best) const {
+  // std::cout<<"very beginning"<<std::endl;
   if (!alct.isValid() or !clct.isValid() or clusters.empty())
     return;
-
+  // std::cout<<"beginning"<<std::endl;
   // match spatially
   GEMInternalClusters clustersLoc;
   matchingClustersLoc(alct, clct, clusters, lookupTableME11ILT, lookupTableME21ILT, clustersLoc);
-
+  // std::cout<<"after matchingclustersloc"<<std::endl;
   // the first matching one is also the closest in phi distance (to expected position, if extrapolating), by ordered list in CLCT matching
   if (!clustersLoc.empty()) {
     best = clustersLoc[0];
@@ -148,9 +149,12 @@ void CSCGEMMatcher::matchingClustersLoc(const CSCCLCTDigi& clct,
     return;
 
   const bool isME1a(station_ == 1 and clct.getKeyStrip() > CSCConstants::MAX_HALF_STRIP_ME1B);
+  // std::cout<<"MAX_HALF_STRIP_ME1B: "<<CSCConstants::MAX_HALF_STRIP_ME1B<<std::endl;
+  // std::cout<<"station_: "<<station_<<" clct.getKeyStrip(): "<<clct.getKeyStrip()<<" isME1a: "<<isME1a<<std::endl;
 
   //determine window size
   unsigned eighthStripCut = isEven_ ? 4 * maxDeltaHsEven_ : 4 * maxDeltaHsOdd_;  // Cut in 1/8 = 4 * cut in 1/2
+  // std::cout<<"eighthstripcut: "<<eighthStripCut<<" isEven_: "<<isEven_<<std::endl;
 
   for (const auto& cl : clusters) {
     // std::cout << "GEM cluster: " << cl << std::endl;
@@ -164,10 +168,20 @@ void CSCGEMMatcher::matchingClustersLoc(const CSCCLCTDigi& clct,
            ((isME1a and cl.roll1() == 8) or (!isME1a and cl.roll1() < 8))) or
           (station_ == 1 and !enable_match_gem_me1a_ and !isME1a) or (station_ == 2)) {
         constexpr bool isLayer2 = false;
-        unsigned distanceES =
-            abs(matchedClusterDistES(clct, cl, isLayer2, false, lookupTableME11ILT, lookupTableME21ILT));
+        // std::cout<<"layer1 matchedclusterdistes"<<std::endl;
+        std::vector<int> signed_dists = matchedClusterDistES(clct, cl, isLayer2, false, lookupTableME11ILT, lookupTableME21ILT);
+        int signed_dist = signed_dists[0];
+        unsigned distanceES = abs(signed_dist);
         if (distanceES <= eighthStripCut)
+        {
           isMatchedLayer1 = true;
+          distES_file << cl.id1().region() << ", "
+                    << cl.id1().ring() << ", "
+                    << cl.id1().station() << ", "
+                    << cl.id1().chamber() << ", "
+                    << cl.id1().layer() << ", "
+                    << signed_dist << "\n";
+        }
       }
     }
     if (cl.id2().layer() == 2) {  // cluster has valid layer 2
@@ -175,10 +189,20 @@ void CSCGEMMatcher::matchingClustersLoc(const CSCCLCTDigi& clct,
            ((isME1a and cl.roll2() == 8) or (!isME1a and cl.roll2() < 8))) or
           (station_ == 1 and !enable_match_gem_me1a_ and !isME1a) or (station_ == 2)) {
         constexpr bool isLayer2 = true;
-        unsigned distanceES =
-            abs(matchedClusterDistES(clct, cl, isLayer2, false, lookupTableME11ILT, lookupTableME21ILT));
+        // std::cout<<"layer 2 matchedclusterdistes"<<std::endl;
+        std::vector<int> signed_dists = matchedClusterDistES(clct, cl, isLayer2, false, lookupTableME11ILT, lookupTableME21ILT);
+        int signed_dist = signed_dists[0];
+        unsigned distanceES = abs(signed_dist);
         if (distanceES <= eighthStripCut)
+        {
           isMatchedLayer2 = true;
+          distES_file << cl.id2().region() << ", "
+                    << cl.id2().ring() << ", "
+                    << cl.id2().station() << ", "
+                    << cl.id2().chamber() << ", "
+                    << cl.id2().layer() << ", "
+                    << signed_dist << "\n";
+        }
       }
     }
 
@@ -207,10 +231,11 @@ void CSCGEMMatcher::matchingClustersLoc(const CSCCLCTDigi& clct,
         else if ((cl1.isCoincidence() and cl2.isCoincidence()) or (!cl1.isCoincidence() and !cl2.isCoincidence())) {
           bool cl1_isLayer2 = !cl1.isMatchingLayer1() and cl1.isMatchingLayer2();
           bool cl2_isLayer2 = !cl2.isMatchingLayer1() and cl2.isMatchingLayer2();
+          // std::cout<<"the indexing didn't work"<<std::endl;
           unsigned cl1_distanceES =
-              abs(matchedClusterDistES(clct, cl1, cl1_isLayer2, false, lookupTableME11ILT, lookupTableME21ILT));
+              abs(matchedClusterDistES(clct, cl1, cl1_isLayer2, false, lookupTableME11ILT, lookupTableME21ILT)[0]);
           unsigned cl2_distanceES =
-              abs(matchedClusterDistES(clct, cl2, cl2_isLayer2, false, lookupTableME11ILT, lookupTableME21ILT));
+              abs(matchedClusterDistES(clct, cl2, cl2_isLayer2, false, lookupTableME11ILT, lookupTableME21ILT)[0]);
           return cl1_distanceES < cl2_distanceES;
         } else
           return false;
@@ -239,7 +264,7 @@ void CSCGEMMatcher::matchingClustersLoc(const CSCALCTDigi& alct,
 //##############################################################
 
 // calculate distance in eighth-strip units between CLCT and GEM, switch ForceTotal on to calculate total distance without slope extrapolation
-int CSCGEMMatcher::matchedClusterDistES(const CSCCLCTDigi& clct,
+std::vector<int> CSCGEMMatcher::matchedClusterDistES(const CSCCLCTDigi& clct,
                                         const GEMInternalCluster& cl,
                                         const bool isLayer2,
                                         const bool ForceTotal,
@@ -280,9 +305,13 @@ int CSCGEMMatcher::matchedClusterDistES(const CSCCLCTDigi& clct,
 
     SlopeShift = CSCGEMSlopeCorrector(isME1a, clctSlope, isLayer2, lookupTableME11ILT, lookupTableME21ILT);
     eighthStripDiff -= SlopeShift;
+    bendinganglenocorrection -= SlopeShift;
   }
-
-  return eighthStripDiff;
+  // std::cout<<"cl_es: "<<cl_es<<" clct.getKeyStrip(8): "<<clct.getKeyStrip(8)<<" SlopeShift: "<<SlopeShift<<std::endl;
+  output.push_back(eighthStripDiff);
+  output.push_back(bendinganglenocorrection);
+  output.push_back(cl_es);
+  return output;
 }
 
 //##############################################################
@@ -457,21 +486,39 @@ int CSCGEMMatcher::CSCGEMSlopeCorrector(bool isME1a,
 //  Ancillary functions: computation of slope corrected by GEM
 //##############################################################
 
-//function to replace the CLCT slope by the slope indicated by the strip difference between the CLCT and its matching GEM internal cluster
-int CSCGEMMatcher::calculateGEMCSCBending(const CSCCLCTDigi& clct,
+//function to replace the CLCT slope by the slope indicated by the strip difference between the CLCT and its matching GEM internal cluster //lctdebug changes, used to be an int
+std::vector<int> CSCGEMMatcher::calculateGEMCSCBending(const CSCCLCTDigi& clct,
                                           const GEMInternalCluster& cluster,
                                           const CSCL1TPLookupTableME11ILT* lookupTableME11ILT,
                                           const CSCL1TPLookupTableME21ILT* lookupTableME21ILT) const {
   const bool isME1a(station_ == 1 and clct.getKeyStrip() > CSCConstants::MAX_HALF_STRIP_ME1B);
-
+  //////////////////////////////////////////////////////lctdebug changes
+  std::vector<int> output;
+  ///////////////////////////////////////////////////////////
   bool isLayer2 = false;
   if (!cluster.isMatchingLayer1() and cluster.isMatchingLayer2())
     isLayer2 = true;
 
   //ME1a necessitates a different treatment because of a different strip numbering scheme and strip width
-  const int SignedEighthStripDiff =
-      matchedClusterDistES(clct, cluster, isLayer2, true, lookupTableME11ILT, lookupTableME21ILT);
+  const std::vector<int> SignedEighthStripDifflayer1 =
+      matchedClusterDistES(clct, cluster, false, true, lookupTableME11ILT, lookupTableME21ILT);
+  const std::vector<int> SignedEighthStripDifflayer2 =
+      matchedClusterDistES(clct, cluster, true, true, lookupTableME11ILT, lookupTableME21ILT);
+  int SignedEighthStripDiff = -1;
+  if (!isLayer2){
+    SignedEighthStripDiff = SignedEighthStripDifflayer1[0];
+  } else {
+    SignedEighthStripDiff = SignedEighthStripDifflayer2[0];
+  }
   const unsigned eighthStripDiff = abs(SignedEighthStripDiff);  //LUTs consider only absolute change
+
+  const std::vector<int> forresiduallayer1 = matchedClusterDistES(clct, cluster, false, false, lookupTableME11ILT, lookupTableME21ILT);
+  int residualwithalignmentlayer1 = forresiduallayer1[0];
+  int residualwithoutalignmentlayer1 = forresiduallayer1[1];
+  const std::vector<int> forresiduallayer2 = matchedClusterDistES(clct, cluster, true, false, lookupTableME11ILT, lookupTableME21ILT);
+  int residualwithalignmentlayer2 = forresiduallayer2[0];
+  int residualwithoutalignmentlayer2 = forresiduallayer2[1];
+  // std::cout << "From CSCGEMMatcher::calculateGEMCSCBending: SignedEighthStripDiff=" << SignedEighthStripDiff << "\n";
 
   //use LUTs to determine absolute slope, default 0
   int slopeShift = 0;

@@ -46,6 +46,9 @@
 #include "CondFormats/CSCObjects/interface/CSCL1TPLookupTableCCLUT.h"
 #include "CondFormats/CSCObjects/interface/CSCL1TPLookupTableME21ILT.h"
 #include "CondFormats/CSCObjects/interface/CSCL1TPLookupTableME11ILT.h"
+//////////////////////////////////////////////////////////lctdebug changes
+#include "DataFormats/LCTDebug/interface/LCTDebug.h"
+/////////////////////////////////////////////////////////////////
 
 class CSCMotherboard : public CSCBaseboard {
 public:
@@ -135,7 +138,9 @@ protected:
 
   /** Container with all LCTs prior to sorting and selecting. */
   LCTContainer allLCTs_;
-
+  ///////////////////////////////////////////////lctdebug changes
+  // std::vector<LCTDebugobject> allLCTdebugs;
+  /////////////////////////////////////////////////
   /* quality assignment */
   std::unique_ptr<LCTQualityAssignment> qualityAssignment_;
 

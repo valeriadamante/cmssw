@@ -1,0 +1,5 @@
+<lcgdict>
+	<class name="LCTDebugobject"/>
+	<class name="std::vector<LCTDebugobject>"/>
+	<class name="edm::Wrapper<std::vector<LCTDebugobject> >"/>
+</lcgdict>

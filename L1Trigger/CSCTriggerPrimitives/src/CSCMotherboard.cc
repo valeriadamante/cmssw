@@ -102,6 +102,9 @@ void CSCMotherboard::clear() {
   lctV.clear();
 
   allLCTs_.clear();
+  // //lctdebug changes
+  // allLCTdebugs.clear();
+  // ////////////////////////////////////////////////////
 
   for (int bx = 0; bx < CSCConstants::MAX_LCT_TBINS; bx++) {
     showers_[bx].clear();

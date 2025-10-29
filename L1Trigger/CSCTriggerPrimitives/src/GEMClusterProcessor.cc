@@ -43,7 +43,6 @@ void GEMClusterProcessor::run(const GEMPadDigiClusterCollection* in_clusters,
                               const CSCL1TPLookupTableME21ILT* lookupTableME21ILT) {
   // Step 1: clear the GEMInternalCluster vector
   clear();
-
   if (in_clusters == nullptr) {
     edm::LogWarning("GEMClusterProcessor") << "Attempt to run without valid in_clusters pointer.";
     return;
@@ -51,6 +50,11 @@ void GEMClusterProcessor::run(const GEMPadDigiClusterCollection* in_clusters,
 
   // Step 2: put coincidence clusters in GEMInternalCluster vector
   addCoincidenceClusters(in_clusters);
+  // for (const auto& cl : clusters_) {
+  //   // valid single clusters with the right BX
+  //   cl.cl1().print();
+  //   cl.cl2().print();
+  // }
 
   // Step 3: put single clusters in GEMInternalCluster vector who are not part of any coincidence cluster
   addSingleClusters(in_clusters);
@@ -64,7 +68,7 @@ std::vector<GEMInternalCluster> GEMClusterProcessor::getClusters(int bx, Cluster
 
   for (const auto& cl : clusters_) {
     // valid single clusters with the right BX
-    if (cl.bx() == bx and cl.isValid()) {
+    if ((cl.bx() == bx) and cl.isValid()) {
       // ignore the coincidence clusters
       if (option == SingleClusters and cl.isCoincidence())
         continue;
@@ -81,19 +85,15 @@ void GEMClusterProcessor::addCoincidenceClusters(const GEMPadDigiClusterCollecti
   // Build coincidences
   for (auto det_range = in_clusters->begin(); det_range != in_clusters->end(); ++det_range) {
     const GEMDetId& id = (*det_range).first;
-
     // coincidence pads are not built for ME0
     if (id.isME0())
       continue;
-
     // same chamber (no restriction on the roll number)
     if (id.region() != region_ or id.station() != station_ or id.chamber() != chamber_)
       continue;
-
     // all coincidences detIDs will have layer=1
     if (id.layer() != 1)
       continue;
-
     // find all corresponding ids with layer 2 and same roll that differs at most maxDeltaRoll_
     for (unsigned int roll = id.roll() - maxDeltaRoll_; roll <= id.roll() + maxDeltaRoll_; ++roll) {
       GEMDetId co_id(id.region(), id.ring(), id.station(), 2, id.chamber(), roll);
@@ -106,60 +106,65 @@ void GEMClusterProcessor::addCoincidenceClusters(const GEMPadDigiClusterCollecti
 
       // now let's correlate the pads in two layers of this partition
       const auto& pads_range = (*det_range).second;
-      for (auto p = pads_range.first; p != pads_range.second; ++p) {
-        // ignore 8-partition GE2/1 pads
-        if (id.isGE21() and p->nPartitions() == GEMPadDigiCluster::GE21) {
-          hasGE21Geometry16Partitions_ = false;
-          continue;
-        }
-
-        // only consider valid pads
-        if (!p->isValid())
-          continue;
-
-        for (auto co_p = co_clusters_range.first; co_p != co_clusters_range.second; ++co_p) {
-          // only consider valid clusters
-          if (!co_p->isValid())
-            continue;
-
-          // check the match in BX
-          if ((unsigned)std::abs(p->bx() - co_p->bx()) > maxDeltaBX_)
-            continue;
-
-          // get the corrected minimum and maximum of cluster 1
-          int cl1_min = p->pads().front() - maxDeltaPad_;
-          int cl1_max = p->pads().back() + maxDeltaPad_;
-
-          // get the minimum and maximum of cluster 2
-          int cl2_min = co_p->pads().front();
-          int cl2_max = co_p->pads().back();
-
-          // match condition
-          const bool condition1(cl1_min <= cl2_min and cl1_max >= cl2_min);
-          const bool condition2(cl1_min <= cl2_max and cl1_max >= cl2_max);
-          const bool match(condition1 or condition2);
-
-          if (!match)
-            continue;
-
-          auto const& p_pads = p->pads();
-          auto const& co_p_pads = co_p->pads();
-
-          int num_unphys_pads_in_p = std::count_if(p_pads.begin(), p_pads.end(), [](auto pad) { return pad >= 192; });
-          int num_unphys_pads_co_p =
-              std::count_if(co_p_pads.begin(), co_p_pads.end(), [](auto pad) { return pad >= 192; });
-
-          if (num_unphys_pads_in_p > 0 || num_unphys_pads_co_p > 0) {
-            edm::LogWarning("GEMClusterProcessor")
-                << "Encountered unphysical GEM pads when making a coincidence cluster, resetting cluster to empty.";
-            clusters_.emplace_back(
-                id, co_id, GEMPadDigiCluster(), GEMPadDigiCluster(), delayGEMinOTMB_, tmbL1aWindowSize_);
+      for(int bxcopy=0; bxcopy<2; bxcopy++){
+        for (auto p = pads_range.first; p != pads_range.second; ++p) {
+          // ignore 8-partition GE2/1 pads
+          if (id.isGE21() and p->nPartitions() == GEMPadDigiCluster::GE21) {
+            hasGE21Geometry16Partitions_ = false;
             continue;
           }
 
-          // make a new coincidence
-          clusters_.emplace_back(id, co_id, *p, *co_p, delayGEMinOTMB_, tmbL1aWindowSize_);
-          // std::cout << clusters_.back() << std::endl;
+          // only consider valid pads
+          if (!p->isValid())
+            continue;
+
+          for (int co_bxcopy=0; co_bxcopy<2; co_bxcopy++){
+            for (auto co_p = co_clusters_range.first; co_p != co_clusters_range.second; ++co_p) {
+              // only consider valid clusters
+              if (!co_p->isValid())
+                continue;
+
+              // check the match in BX
+              if ((unsigned)std::abs((p->bx()+bxcopy) - (co_p->bx()+co_bxcopy)) > maxDeltaBX_)
+                continue;
+
+              // get the corrected minimum and maximum of cluster 1
+              int cl1_min = p->pads().front() - maxDeltaPad_;
+              int cl1_max = p->pads().back() + maxDeltaPad_;
+
+              // get the minimum and maximum of cluster 2
+              int cl2_min = co_p->pads().front();
+              int cl2_max = co_p->pads().back();
+
+              // match condition
+              const bool condition1(cl1_min <= cl2_min and cl1_max >= cl2_min);
+              const bool condition2(cl1_min <= cl2_max and cl1_max >= cl2_max);
+              const bool match(condition1 or condition2);
+
+              if (!match)
+                continue;
+
+              auto const& p_pads = p->pads();
+              auto const& co_p_pads = co_p->pads();
+
+              int num_unphys_pads_in_p = std::count_if(p_pads.begin(), p_pads.end(), [](auto pad) { return pad >= 192; });
+              int num_unphys_pads_co_p =
+                  std::count_if(co_p_pads.begin(), co_p_pads.end(), [](auto pad) { return pad >= 192; });
+
+              if (num_unphys_pads_in_p > 0 || num_unphys_pads_co_p > 0) {
+                edm::LogWarning("GEMClusterProcessor")
+                    << "Encountered unphysical GEM pads when making a coincidence cluster, resetting cluster to empty.";
+                clusters_.emplace_back(
+                    id, co_id, GEMPadDigiCluster(), GEMPadDigiCluster(), delayGEMinOTMB_, tmbL1aWindowSize_);
+                continue;
+              }
+
+              // make a new coincidence
+              clusters_.emplace_back(id, co_id, GEMPadDigiCluster(p->pads(),p->bx()+bxcopy,p->station(),p->nPartitions()), GEMPadDigiCluster(co_p->pads(),co_p->bx()+co_bxcopy,co_p->station(),co_p->nPartitions()), delayGEMinOTMB_, tmbL1aWindowSize_);
+              // clusters_.emplace_back(id, co_id, *p, GEMPadDigiCluster(co_p->pads(),co_p->bx(),co_p->station(),co_p->nPartitions()), delayGEMinOTMB_, tmbL1aWindowSize_);
+              // std::cout << clusters_.back() << std::endl;
+            }
+          }
         }
       }
     }
@@ -195,28 +200,31 @@ void GEMClusterProcessor::addSingleClusters(const GEMPadDigiClusterCollection* i
       }
 
       // ignore clusters already contained in a coincidence cluster
-      if (std::find_if(std::begin(coincidences), std::end(coincidences), [p](const GEMInternalCluster& q) {
-            return q.has_cluster(*p);
-          }) != std::end(coincidences))
-        continue;
+      for (int bxcopy=0; bxcopy < 2; bxcopy++){
+        auto p_copy = GEMPadDigiCluster(p->pads(),p->bx()+bxcopy,p->station(),p->nPartitions());
+        if (std::find_if(std::begin(coincidences), std::end(coincidences), [p_copy](const GEMInternalCluster& q) {
+              return q.has_cluster(p_copy);
+            }) != std::end(coincidences))
+          continue;
 
-      auto const& p_pads = p->pads();
-      int num_unphys_pads = std::count_if(p_pads.begin(), p_pads.end(), [](auto pad) { return pad >= 192; });
+        auto const& p_pads = p->pads();
+        int num_unphys_pads = std::count_if(p_pads.begin(), p_pads.end(), [](auto pad) { return pad >= 192; });
 
-      if (num_unphys_pads > 0) {
-        edm::LogWarning("GEMClusterProcessor")
-            << "Encountered unphysical GEM pads when making a single cluster, resetting cluster to empty.";
-        clusters_.emplace_back(id, id, GEMPadDigiCluster(), GEMPadDigiCluster(), delayGEMinOTMB_, tmbL1aWindowSize_);
-        continue;
-      }
+        if (num_unphys_pads > 0) {
+          edm::LogWarning("GEMClusterProcessor")
+              << "Encountered unphysical GEM pads when making a single cluster, resetting cluster to empty.";
+          clusters_.emplace_back(id, id, GEMPadDigiCluster(), GEMPadDigiCluster(), delayGEMinOTMB_, tmbL1aWindowSize_);
+          continue;
+        }
 
-      // put the single clusters into the collection
-      if (id.layer() == 1) {
-        clusters_.emplace_back(id, id, *p, GEMPadDigiCluster(), delayGEMinOTMB_, tmbL1aWindowSize_);
-        // std::cout << clusters_.back() << std::endl;
-      } else {
-        clusters_.emplace_back(id, id, GEMPadDigiCluster(), *p, delayGEMinOTMB_, tmbL1aWindowSize_);
-        // std::cout << clusters_.back() << std::endl;
+        // put the single clusters into the collection
+        if (id.layer() == 1) {
+          clusters_.emplace_back(id, id, p_copy, GEMPadDigiCluster(), delayGEMinOTMB_, tmbL1aWindowSize_);
+          // std::cout << clusters_.back() << std::endl;
+        } else {
+          clusters_.emplace_back(id, id, GEMPadDigiCluster(), p_copy, delayGEMinOTMB_, tmbL1aWindowSize_);
+          // std::cout << clusters_.back() << std::endl;
+        }
       }
     }
   }
